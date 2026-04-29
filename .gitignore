@@ -1,0 +1,17 @@
+# CMake ve Derleme Klasörleri
+build/
+out/
+.cmake/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+*.cmake
+
+# VS Code Ayarları
+.vscode/
+
+# Derlenmiş Dosyalar
+*.exe
+*.dll
+*.obj
+*.o
