@@ -87,23 +87,49 @@ int main() {
     // 800x600 boyutunda bir oyun penceresi oluşturur
     sf::RenderWindow window(sf::VideoMode(800, 600), "Space Invaders");
 
+    Player player;
+    std::vector<Bullet> bullets; // Ekrandaki tüm mermileri tutacağımız dinamik dizi
+    
+    sf::Clock clock; // Delta time hesaplamak için saat
+    
     // Oyun döngüsü: Pencere açık olduğu sürece çalışır
     while (window.isOpen()) {
+        float deltaTime = clock.restart().asSeconds(); // Oyunun her bilgisayarda aynı hızda çalışmasını sağlar
+
         sf::Event event;
         // Kapatma tuşuna basılıp basılmadığını kontrol eder
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed)
                 window.close();
         }
+        // Oyuncuyu güncelle (hareket ve ateş etme)
+        player.update(deltaTime, bullets);
+
+        // Mermileri hareket ettirir ve ekrandan çıkanları siler
+        for (int i = 0; i < bullets.size(); i++) {
+            bullets[i].update(deltaTime);
+            
+            // Eğer mermi ekranın en üst sınırını (0) geçerse
+            if (bullets[i].getY() < 0) {
+                bullets.erase(bullets.begin() + i);
+                i--; // Eleman silindiği için dizinin kaymasını engellemek adına indeksi bir geri alıyoruz
+            }
+        }
+
 
         // Ekranı temizle (Siyah renk)
         window.clear();
         
-        
-        
+        player.draw(window); // Gemiyi çiz
+        for (auto& bullet : bullets) {
+            bullet.draw(window); // Aktif olan tüm mermileri çiz
+        }
         
         window.display();
     }
+    
+    
+
 
     return 0;
 }
