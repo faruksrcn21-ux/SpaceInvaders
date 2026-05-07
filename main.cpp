@@ -119,6 +119,34 @@ private:
     sf::RectangleShape shape;
     int health;
 };
+// --- BARİYER (BUNKER) SINIFI ---
+class Barrier {
+public:
+    Barrier(float startX, float startY) {
+        // 4 satır, 6 sütundan oluşan parçalanabilir küçük tuğlalar
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 6; j++) {
+                sf::RectangleShape block(sf::Vector2f(15.0f, 15.0f));
+                block.setFillColor(sf::Color::Cyan); // Açık mavi siperler
+                block.setPosition(startX + j * 15.0f, startY + i * 15.0f);
+                blocks.push_back(block);
+            }
+        }
+    }
+
+    void draw(sf::RenderWindow& window) {
+        for (auto& block : blocks) window.draw(block);
+    }
+
+    // Çarpışma hesaplaması için blok listesine erişim
+    std::vector<sf::RectangleShape>& getBlocks() { return blocks; }
+
+private:
+    std::vector<sf::RectangleShape> blocks; // Bariyeri oluşturan küçük parçalar
+};
+
+
+
 int main() {
     // 800x600 boyutunda bir oyun penceresi oluşturur
     sf::RenderWindow window(sf::VideoMode(800, 600), "Space Invaders");
@@ -148,7 +176,24 @@ int main() {
     std::vector<Bullet> enemyBullets; // Düşman mermilerini tutacağımız liste
     float enemyShootTimer = 0.0f;
     float enemyShootInterval = 1.0f; // Saniyede ortalama 1 kere ateş edecekler
-    srand(time(0)); // Rastgele sayı üretecini başlat
+    srand((unsigned int)time(0)); // Rastgele sayı üretecini başlat
+    // Ekrana 3 adet siper yerleştir
+    std::vector<Barrier> barriers;
+    barriers.push_back(Barrier(100.0f, 450.0f));
+    barriers.push_back(Barrier(350.0f, 450.0f));
+    barriers.push_back(Barrier(600.0f, 450.0f));
+    bool isGameOver = false; // Oyunun bitip bitmediğini kontrol eden ana şalter
+    sf::Font font;
+    bool hasGameOverFont = font.loadFromFile("C:\\Windows\\Fonts\\arial.ttf");
+    sf::Text gameOverText;
+    if (hasGameOverFont) {
+        gameOverText.setFont(font);
+        gameOverText.setString("GAME OVER");
+        gameOverText.setCharacterSize(64);
+        gameOverText.setFillColor(sf::Color::Red);
+        gameOverText.setStyle(sf::Text::Bold);
+        gameOverText.setPosition(180.0f, 250.0f);
+    }
     sf::Clock clock; // Delta time hesaplamak için saat
     
     // Oyun döngüsü: Pencere açık olduğu sürece çalışır
@@ -161,8 +206,11 @@ int main() {
             if (event.type == sf::Event::Closed)
                 window.close();
         }
-        // Oyuncuyu güncelle (hareket ve ateş etme)
-        player.update(deltaTime, bullets);
+
+        // --- SADECE OYUN DEVAM EDİYORSA GÜNCELLE ---
+        if (!isGameOver) {
+            // Oyuncuyu güncelle (hareket ve ateş etme)
+            player.update(deltaTime, bullets);
 
         // Mermileri hareket ettirir ve ekrandan çıkanları siler
         for (int i = 0; i < bullets.size(); i++) {
@@ -186,6 +234,26 @@ int main() {
                     i--;
                     break; // Bu mermi için başka düşman kontrol etme
                 }
+            }
+        }
+
+        // Çarpışma tespiti: Mermiler ve barrierler
+        for (int i = 0; i < bullets.size(); i++) {
+            bool bulletDestroyed = false;
+            for (auto& barrier : barriers) {
+                auto& blocks = barrier.getBlocks();
+                for (int k = 0; k < blocks.size(); k++) {
+                    if (bullets[i].getBounds().intersects(blocks[k].getGlobalBounds())) {
+                        blocks.erase(blocks.begin() + k); // Çarpan tuğlayı yok et
+                        bulletDestroyed = true;
+                        break;
+                    }
+                }
+                if (bulletDestroyed) break;
+            }
+            if (bulletDestroyed) {
+                bullets.erase(bullets.begin() + i);
+                i--;
             }
         }
 
@@ -236,19 +304,38 @@ int main() {
             enemyBullets[i].update(deltaTime); // Mermiyi aşağı kaydır
             
             // Mermi oyuncuya çarptı mı?
+            bool eBulletDestroyed = false;
+
+            // Düşman mermisi gemimize çarptı mı? (GAME OVER TETİKLEYİCİ)
             if (enemyBullets[i].getBounds().intersects(player.getBounds())) {
-                printf("VURULDUN!\n"); // Şimdilik sadece konsola yazdıralım
-                enemyBullets.erase(enemyBullets.begin() + i);
-                i--;
-                continue; // Bu mermi silindiği için alttaki ekran sınır kontrolüne girme
+                isGameOver = true; // Şalteri indir!
+                window.setTitle("Space Invaders - GAME OVER!"); // Pencere başlığına yaz
+                eBulletDestroyed = true;
             }
 
-            // Mermi ekranın en altına (600) ulaşıp dışarı çıktıysa sil
-            if (enemyBullets[i].getY() > 600) { 
+            // Düşman mermisi bariyere çarptı mı?
+            if (!eBulletDestroyed) {
+                for (auto& barrier : barriers) {
+                    auto& blocks = barrier.getBlocks();
+                    for (int k = 0; k < blocks.size(); k++) {
+                        if (enemyBullets[i].getBounds().intersects(blocks[k].getGlobalBounds())) {
+                            blocks.erase(blocks.begin() + k); // Düşman da bariyeri parçalar
+                            eBulletDestroyed = true;
+                            break;
+                        }
+                    }
+                    if (eBulletDestroyed) break;
+                }
+            }
+
+            if (eBulletDestroyed || enemyBullets[i].getY() > 600) {
                 enemyBullets.erase(enemyBullets.begin() + i);
                 i--;
             }
         }
+        }
+
+        // --- OYUN GÜNCELLEME SONU ---
 
         // Ekranı temizle (Siyah renk)
         window.clear();
@@ -264,6 +351,14 @@ int main() {
         for (auto& eBullet : enemyBullets) {
             eBullet.draw(window);
         }
+        for (auto& barrier : barriers) {
+            barrier.draw(window);
+        }
+
+        if (isGameOver && hasGameOverFont) {
+            window.draw(gameOverText);
+        }
+
         window.display();
     }
     
