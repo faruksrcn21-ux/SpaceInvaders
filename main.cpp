@@ -1,39 +1,33 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
+#include <cstdlib>
+#include <ctime>
 
-// --- MERMİ (BULLET) SINIFI ---
+// --- MERMİ SINIFI ---
 class Bullet {
 public:
-    Bullet(float startX, float startY) {
-        // Merminin boyutu ve rengi (Küçük sarı bir lazer)
+    // dir: -1 yukarı (oyuncu), 1 aşağı (düşman)
+    Bullet(float startX, float startY, float dir = -1.0f, sf::Color color = sf::Color::Yellow) {
         shape.setSize(sf::Vector2f(5.0f, 15.0f));
-        shape.setFillColor(sf::Color::Yellow);
+        shape.setFillColor(color);
         shape.setPosition(startX, startY);
-        speed = 500.0f; // Merminin yukarı gidiş hızı
+        speed = 500.0f;
+        direction = dir; // Merminin yönü
     }
 
-    void update(float deltaTime) {
-        // Y ekseninde eksi (-) yönde gitmek yukarı çıkmaktır
-        shape.move(0.0f, -speed * deltaTime); 
+    void update(float deltaTime) { 
+        shape.move(0.0f, speed * direction * deltaTime); 
     }
-
-    void draw(sf::RenderWindow& window) {
-        window.draw(shape);
-    }
-
-    float getY() const { 
-        return shape.getPosition().y; 
-    }
-
-    sf::FloatRect getBounds() const {
-        return shape.getGlobalBounds();
-    }
+    
+    void draw(sf::RenderWindow& window) { window.draw(shape); }
+    float getY() const { return shape.getPosition().y; }
+    sf::FloatRect getBounds() const { return shape.getGlobalBounds(); }
 
 private:
     sf::RectangleShape shape;
     float speed;
+    float direction;
 };
-
 // --- OYUNCU (PLAYER) SINIFI ---
 class Player {
 public:
@@ -78,6 +72,7 @@ public:
     void draw(sf::RenderWindow& window) {
         window.draw(shape);
     }
+    sf::FloatRect getBounds() const { return shape.getGlobalBounds(); }
 
 private:
     sf::RectangleShape shape;
@@ -150,6 +145,10 @@ int main() {
     float swarmSpeed = 100.0f; // Sürünün genel hızı
     int swarmDirection = 1;    // 1 sağa, -1 sola demek
     float dropDistance = 20.0f;// Duvara çarpınca aşağı inme miktarı
+    std::vector<Bullet> enemyBullets; // Düşman mermilerini tutacağımız liste
+    float enemyShootTimer = 0.0f;
+    float enemyShootInterval = 1.0f; // Saniyede ortalama 1 kere ateş edecekler
+    srand(time(0)); // Rastgele sayı üretecini başlat
     sf::Clock clock; // Delta time hesaplamak için saat
     
     // Oyun döngüsü: Pencere açık olduğu sürece çalışır
@@ -209,12 +208,45 @@ int main() {
             }
         }
 
-        // Eğer sürü duvara çarptıysa yön değiştir ve bir alt satıra in
+        // 4.Eğer sürü duvara çarptıysa yön değiştir ve bir alt satıra in
         if (hitWall) {
             swarmDirection *= -1; // Yönü tersine çevir
             for (auto& enemy : enemies) {
                 // Duvarın içine sıkışmamaları için onları aşağı kaydırıyoruz
                 enemy.move(swarmSpeed * swarmDirection * deltaTime, dropDistance); 
+            }
+        }
+        // 5. Düşman Ateş Etme Mantığı
+        enemyShootTimer += deltaTime;
+        if (enemyShootTimer >= enemyShootInterval && !enemies.empty()) {
+            // Rastgele bir düşman seç
+            int randomIndex = rand() % enemies.size();
+            float startX = enemies[randomIndex].getX() + 20.0f; // Düşmanın tam ortası
+            float startY = enemies[randomIndex].getY() + 30.0f; // Düşmanın alt ucu
+            
+            enemyBullets.push_back(Bullet(startX, startY, 1.0f, sf::Color::Red));
+            
+            // Ateş süresini rastgeleleştirir (0.5 ile 1.5 saniye arası) ki tahmin edilemez olsun
+            enemyShootTimer = 0.0f;
+            enemyShootInterval = 0.5f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / 1.0f));
+        }
+
+        // 6. Düşman Mermilerini Güncelleme ve Oyuncu Çarpışması
+        for (int i = 0; i < enemyBullets.size(); i++) {
+            enemyBullets[i].update(deltaTime); // Mermiyi aşağı kaydır
+            
+            // Mermi oyuncuya çarptı mı?
+            if (enemyBullets[i].getBounds().intersects(player.getBounds())) {
+                printf("VURULDUN!\n"); // Şimdilik sadece konsola yazdıralım
+                enemyBullets.erase(enemyBullets.begin() + i);
+                i--;
+                continue; // Bu mermi silindiği için alttaki ekran sınır kontrolüne girme
+            }
+
+            // Mermi ekranın en altına (600) ulaşıp dışarı çıktıysa sil
+            if (enemyBullets[i].getY() > 600) { 
+                enemyBullets.erase(enemyBullets.begin() + i);
+                i--;
             }
         }
 
@@ -228,6 +260,9 @@ int main() {
         }
         for (auto& enemy : enemies) {
             enemy.draw(window);
+        }
+        for (auto& eBullet : enemyBullets) {
+            eBullet.draw(window);
         }
         window.display();
     }
