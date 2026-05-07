@@ -25,6 +25,10 @@ public:
         return shape.getPosition().y; 
     }
 
+    sf::FloatRect getBounds() const {
+        return shape.getGlobalBounds();
+    }
+
 private:
     sf::RectangleShape shape;
     float speed;
@@ -82,14 +86,70 @@ private:
     float shootCooldown;
 };
 
+// --- DÜŞMAN SINIFI ---
+class Enemy {
+public:
+    Enemy(float startX, float startY) {
+        // Düşmanlarımız şimdilik kırmızı kutular
+        shape.setSize(sf::Vector2f(40.0f, 30.0f));
+        shape.setFillColor(sf::Color::Red);
+        shape.setPosition(startX, startY);
+        health = 1; // Düşmanın başlangıç sağlığı
+    }
 
+    void move(float offsetX, float offsetY) {
+        shape.move(offsetX, offsetY);
+    }
+
+    void draw(sf::RenderWindow& window) {
+        window.draw(shape);
+    }
+
+    void takeDamage(int damage) {
+        health -= damage;
+    }
+
+    bool isAlive() const {
+        return health > 0;
+    }
+
+    sf::FloatRect getBounds() const {
+        return shape.getGlobalBounds();
+    }
+
+    float getX() const { return shape.getPosition().x; }
+    float getY() const { return shape.getPosition().y; }
+
+private:
+    sf::RectangleShape shape;
+    int health;
+};
 int main() {
     // 800x600 boyutunda bir oyun penceresi oluşturur
     sf::RenderWindow window(sf::VideoMode(800, 600), "Space Invaders");
 
     Player player;
     std::vector<Bullet> bullets; // Ekrandaki tüm mermileri tutacağımız dinamik dizi
-    
+    // Düşman Sürüsünü Oluşturma (Grid Mantığı)
+    std::vector<Enemy> enemies;
+    int rows = 4;
+    int cols = 8;
+    float startX = 50.0f;
+    float startY = 50.0f;
+    float spacingX = 60.0f; // Yan yana olanlar arasındaki boşluk
+    float spacingY = 50.0f; // Alt alta olanlar arasındaki boşluk
+
+    // İki boyutlu matris gibi düşmanları yerleştir
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            enemies.push_back(Enemy(startX + j * spacingX, startY + i * spacingY));
+        }
+    }
+
+    // Sürü Hareket Değişkenleri
+    float swarmSpeed = 100.0f; // Sürünün genel hızı
+    int swarmDirection = 1;    // 1 sağa, -1 sola demek
+    float dropDistance = 20.0f;// Duvara çarpınca aşağı inme miktarı
     sf::Clock clock; // Delta time hesaplamak için saat
     
     // Oyun döngüsü: Pencere açık olduğu sürece çalışır
@@ -116,6 +176,47 @@ int main() {
             }
         }
 
+        // Çarpışma tespiti: Mermiler ve düşmanlar
+        for (int i = 0; i < bullets.size(); i++) {
+            for (int j = 0; j < enemies.size(); j++) {
+                if (bullets[i].getBounds().intersects(enemies[j].getBounds())) {
+                    // Çarpışma oldu, düşmana hasar ver
+                    enemies[j].takeDamage(1);
+                    // Mermiyi sil
+                    bullets.erase(bullets.begin() + i);
+                    i--;
+                    break; // Bu mermi için başka düşman kontrol etme
+                }
+            }
+        }
+
+        // Ölü düşmanları sil
+        for (int i = 0; i < enemies.size(); i++) {
+            if (!enemies[i].isAlive()) {
+                enemies.erase(enemies.begin() + i);
+                i--;
+            }
+        }
+
+        // 3. Düşman Sürüsü Güncellemesi (Kovan Zihni)
+        bool hitWall = false;
+        for (auto& enemy : enemies) {
+            enemy.move(swarmSpeed * swarmDirection * deltaTime, 0); // Hepsini kaydır
+            
+            // Eğer herhangi bir düşman ekranın sağ veya sol sınırına değerse
+            if (enemy.getX() <= 0 || enemy.getX() >= 800 - 40.0f) {
+                hitWall = true;
+            }
+        }
+
+        // Eğer sürü duvara çarptıysa yön değiştir ve bir alt satıra in
+        if (hitWall) {
+            swarmDirection *= -1; // Yönü tersine çevir
+            for (auto& enemy : enemies) {
+                // Duvarın içine sıkışmamaları için onları aşağı kaydırıyoruz
+                enemy.move(swarmSpeed * swarmDirection * deltaTime, dropDistance); 
+            }
+        }
 
         // Ekranı temizle (Siyah renk)
         window.clear();
@@ -123,8 +224,11 @@ int main() {
         player.draw(window); // Gemiyi çiz
         for (auto& bullet : bullets) {
             bullet.draw(window); // Aktif olan tüm mermileri çiz
+            
         }
-        
+        for (auto& enemy : enemies) {
+            enemy.draw(window);
+        }
         window.display();
     }
     
