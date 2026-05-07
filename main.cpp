@@ -183,17 +183,52 @@ int main() {
     barriers.push_back(Barrier(350.0f, 450.0f));
     barriers.push_back(Barrier(600.0f, 450.0f));
     bool isGameOver = false; // Oyunun bitip bitmediğini kontrol eden ana şalter
+    // --- UI (ARAYÜZ) DEĞİŞKENLERİ VE FONT ---
+    int score = 0;
+    int lives = 3;
+
     sf::Font font;
-    bool hasGameOverFont = font.loadFromFile("C:\\Windows\\Fonts\\arial.ttf");
+    bool hasGameOverFont = true;
+    // Windows'un varsayılan fontlarından birini yüklüyoruz
+    if (!font.loadFromFile("C:/Windows/Fonts/consola.ttf")) {
+        printf("Font yuklenemedi!\n");
+        hasGameOverFont = false;
+    }
+
+    // Skor Yazısı
+    sf::Text scoreText;
+    scoreText.setFont(font);
+    scoreText.setCharacterSize(20);
+    scoreText.setFillColor(sf::Color::White);
+    scoreText.setPosition(20.f, 20.f);
+    scoreText.setString("Skor: 0");
+
+    // Can Yazısı
+    sf::Text livesText;
+    livesText.setFont(font);
+    livesText.setCharacterSize(20);
+    livesText.setFillColor(sf::Color::White);
+    livesText.setPosition(650.f, 20.f);
+    livesText.setString("Can: 3");
+    // Game Over Yazısı (Başlangıçta gizli olacak)
     sf::Text gameOverText;
     if (hasGameOverFont) {
         gameOverText.setFont(font);
-        gameOverText.setString("GAME OVER");
-        gameOverText.setCharacterSize(64);
+        gameOverText.setCharacterSize(80);
         gameOverText.setFillColor(sf::Color::Red);
-        gameOverText.setStyle(sf::Text::Bold);
-        gameOverText.setPosition(180.0f, 250.0f);
+        gameOverText.setString("GAME OVER");
+        // Yazıyı ekranın tam ortasına hizalamak için matematiksel ortalama alıyoruz
+        sf::FloatRect textRect = gameOverText.getLocalBounds();
+        gameOverText.setOrigin(textRect.left + textRect.width / 2.0f, textRect.top + textRect.height / 2.0f);
+        gameOverText.setPosition(800.0f / 2.0f, 600.0f / 2.0f);
     }
+    int level = 1;
+    sf::Text levelText;
+    levelText.setFont(font);
+    levelText.setCharacterSize(20);
+    levelText.setFillColor(sf::Color::White);
+    levelText.setPosition(350.f, 20.f); // Ekranın üst orta kısmına
+    levelText.setString("Seviye: 1");
     sf::Clock clock; // Delta time hesaplamak için saat
     
     // Oyun döngüsü: Pencere açık olduğu sürece çalışır
@@ -219,6 +254,9 @@ int main() {
             // Eğer mermi ekranın en üst sınırını (0) geçerse
             if (bullets[i].getY() < 0) {
                 bullets.erase(bullets.begin() + i);
+                // Düşman vuruldu, skoru artır ve metni güncelle
+                    score += 10;
+                    scoreText.setString("Skor: " + std::to_string(score));
                 i--; // Eleman silindiği için dizinin kaymasını engellemek adına indeksi bir geri alıyoruz
             }
         }
@@ -306,11 +344,16 @@ int main() {
             // Mermi oyuncuya çarptı mı?
             bool eBulletDestroyed = false;
 
-            // Düşman mermisi gemimize çarptı mı? (GAME OVER TETİKLEYİCİ)
+            // Düşman mermisi gemimize çarptı mı?
             if (enemyBullets[i].getBounds().intersects(player.getBounds())) {
-                isGameOver = true; // Şalteri indir!
-                window.setTitle("Space Invaders - GAME OVER!"); // Pencere başlığına yaz
+                lives--; // Canı 1 azalt
+                livesText.setString("Can: " + std::to_string(lives)); // Ekrana yansıt
                 eBulletDestroyed = true;
+
+                if (lives <= 0) {
+                    isGameOver = true; // Şalteri indir!
+                    window.setTitle("Space Invaders - GAME OVER!"); // Pencere başlığına yaz
+                }
             }
 
             // Düşman mermisi bariyere çarptı mı?
@@ -334,6 +377,26 @@ int main() {
             }
         }
         }
+        // 7. SEVİYE ATLATMA KONTROLÜ
+        if (enemies.empty() && !isGameOver) {
+            level++;
+            levelText.setString("Seviye: " + std::to_string(level));
+
+            // ZORLUK ARTIŞI
+            swarmSpeed += 20.0f;         // Düşmanlar her seviyede daha hızlı kayar
+            enemyShootInterval *= 0.9f;  // Ateş etme süresi %10 kısalır (daha sık ateş ederler)
+
+            // Düşmanları yeniden oluştur (Aynı grid mantığı)
+            for (int i = 0; i < rows; i++) {
+                for (int j = 0; j < cols; j++) {
+                    enemies.push_back(Enemy(startX + j * spacingX, startY + i * spacingY));
+                }
+            }
+
+            // Mermileri temizle (Yeni seviyeye temiz bir ekranda başla)
+            bullets.clear();
+            enemyBullets.clear();
+        }
 
         // --- OYUN GÜNCELLEME SONU ---
 
@@ -343,7 +406,7 @@ int main() {
         player.draw(window); // Gemiyi çiz
         for (auto& bullet : bullets) {
             bullet.draw(window); // Aktif olan tüm mermileri çiz
-            
+            bullet.update(deltaTime);
         }
         for (auto& enemy : enemies) {
             enemy.draw(window);
@@ -359,6 +422,10 @@ int main() {
             window.draw(gameOverText);
         }
 
+        // UI elemanlarını çizdir (Oyun bitse bile ekranda kalsınlar)
+        window.draw(scoreText);
+        window.draw(livesText);
+        window.draw(levelText);
         window.display();
     }
     
