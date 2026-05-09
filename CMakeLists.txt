@@ -18,7 +18,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(SFML)
 
 # Kaynak dosyalarımız
-add_executable(SpaceInvaders main.cpp)
+add_executable(SpaceInvaders main.cpp GameManager.cpp Player.cpp Enemy.cpp Bullet.cpp Barrier.cpp)
 
 # SFML modüllerini bağla
 target_link_libraries(SpaceInvaders sfml-graphics sfml-window sfml-system sfml-audio)
