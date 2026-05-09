@@ -32,11 +32,16 @@ GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders - Y
     barriers.push_back(Barrier(350.0f, 450.0f));
     barriers.push_back(Barrier(600.0f, 450.0f));
 
-    swarmSpeed = 100.0f;
-    swarmDirection = 1;
-    dropDistance = 20.0f;
-    enemyShootTimer = 0.0f;
-    enemyShootInterval = 1.0f;
+    swarmSpeed        = 100.0f;
+    swarmDirection    = 1;
+    dropDistance      = 20.0f;
+    enemyShootTimer   = 0.0f;
+    enemyShootInterval= 1.0f;
+
+    // COMMIT 1: adım zamanlayıcısı ve dropPending başlatıldı
+    dropPending       = false;
+    swarmMoveTimer    = 0.0f;
+    swarmMoveInterval = 0.8f;  // başlangıçta her 0.8 sn'de bir adım
 
     initLevel();
 }
@@ -57,6 +62,7 @@ void GameManager::run() {
     sf::Clock clock;
     while (window.isOpen()) {
         float deltaTime = clock.restart().asSeconds();
+        if (deltaTime > 0.05f) deltaTime = 0.05f; // pencere sürükleme spike'ını engelle
         processEvents();
         update(deltaTime);
         render();
@@ -75,12 +81,11 @@ void GameManager::update(float deltaTime) {
 
     player.update(deltaTime, bullets);
 
-    // Oyuncu mermileri ve çarpışmalar
-    for (int i = 0; i < bullets.size(); i++) {
+    for (int i = 0; i < (int)bullets.size(); i++) {
         bullets[i].update(deltaTime);
         bool bulletDestroyed = false;
 
-        for (int j = 0; j < enemies.size(); j++) {
+        for (int j = 0; j < (int)enemies.size(); j++) {
             if (bullets[i].getBounds().intersects(enemies[j].getBounds())) {
                 enemies[j].takeDamage(1);
                 bulletDestroyed = true;
@@ -93,7 +98,7 @@ void GameManager::update(float deltaTime) {
         if (!bulletDestroyed) {
             for (auto& barrier : barriers) {
                 auto& blocks = barrier.getBlocks();
-                for (int k = 0; k < blocks.size(); k++) {
+                for (int k = 0; k < (int)blocks.size(); k++) {
                     if (bullets[i].getBounds().intersects(blocks[k].getGlobalBounds())) {
                         blocks.erase(blocks.begin() + k);
                         bulletDestroyed = true;
@@ -109,22 +114,50 @@ void GameManager::update(float deltaTime) {
             i--;
         }
     }
+    swarmMoveTimer += deltaTime;
+    if (swarmMoveTimer >= swarmMoveInterval) {
+        swarmMoveTimer = 0.0f;
 
-    // Düşman ordusunun hareketi
-    bool hitWall = false;
-    for (auto& enemy : enemies) {
-        enemy.move(swarmSpeed * swarmDirection * deltaTime, 0);
-        if (enemy.getX() <= 0 || enemy.getX() >= 800 - 40.0f) hitWall = true;
-    }
+        if (dropPending) {
+            // Önceki adımda kenara vurulmuştu: aşağı in + yön değiştir
+            for (auto& enemy : enemies)
+                enemy.move(0.0f, dropDistance);
+            swarmDirection *= -1;
+            dropPending = false;
+        } else {
+            // Normal yatay adım
+            float step = swarmSpeed * swarmDirection * swarmMoveInterval;
+            bool hitWall = false;
 
-    if (hitWall) {
-        swarmDirection *= -1;
-        for (auto& enemy : enemies) {
-            enemy.move(swarmSpeed * swarmDirection * deltaTime, dropDistance);
+            // Önce sınır kontrolü yap, hareket ettirme
+            for (auto& enemy : enemies) {
+                float nextX = enemy.getX() + step;
+                if (nextX <= 0.0f || nextX >= 800.0f - 40.0f) {
+                    hitWall = true;
+                    break;
+                }
+            }
+
+            if (hitWall) {
+                // Bu adımda hareket etme, sadece bayrağı set et
+                dropPending = true;
+            } else {
+                // Güvenli: tümünü hareket ettir
+                for (auto& enemy : enemies)
+                    enemy.move(step, 0.0f);
+            }
+
+            // Hayatta kalan düşman sayısına göre hızlan
+            // Düşman azaldıkça swarmMoveInterval kısalır (daha sık adım)
+            int aliveCount = (int)enemies.size();
+            int totalCount = 4 * 8; // rows * cols
+            float ratio = 1.0f - (float)aliveCount / (float)totalCount;
+            swarmMoveInterval = 0.8f * (1.0f - ratio * 0.75f);
+            if (swarmMoveInterval < 0.05f) swarmMoveInterval = 0.05f;
         }
     }
 
-    // Düşman ateşi
+    // Düşman ateşi 
     enemyShootTimer += deltaTime;
     if (enemyShootTimer >= enemyShootInterval && !enemies.empty()) {
         int randomIndex = rand() % enemies.size();
@@ -135,16 +168,16 @@ void GameManager::update(float deltaTime) {
         enemyShootInterval = 0.5f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / 1.0f));
     }
 
-    // Ölü düşmanları sil
-    for (int i = 0; i < enemies.size(); i++) {
+    // Ölü düşmanları sil 
+    for (int i = 0; i < (int)enemies.size(); i++) {
         if (!enemies[i].isAlive()) {
             enemies.erase(enemies.begin() + i);
             i--;
         }
     }
 
-    // Düşman mermileri ve çarpışmalar
-    for (int i = 0; i < enemyBullets.size(); i++) {
+    // Düşman mermileri
+    for (int i = 0; i < (int)enemyBullets.size(); i++) {
         enemyBullets[i].update(deltaTime);
         bool eBulletDestroyed = false;
 
@@ -161,7 +194,7 @@ void GameManager::update(float deltaTime) {
         if (!eBulletDestroyed) {
             for (auto& barrier : barriers) {
                 auto& blocks = barrier.getBlocks();
-                for (int k = 0; k < blocks.size(); k++) {
+                for (int k = 0; k < (int)blocks.size(); k++) {
                     if (enemyBullets[i].getBounds().intersects(blocks[k].getGlobalBounds())) {
                         blocks.erase(blocks.begin() + k);
                         eBulletDestroyed = true;
@@ -178,11 +211,13 @@ void GameManager::update(float deltaTime) {
         }
     }
 
-    // Seviye atlama
+    // Seviye atlama 
     if (enemies.empty() && !isGameOver) {
         level++;
         levelText.setString("Seviye: " + std::to_string(level));
-        swarmSpeed += 20.0f;
+        swarmSpeed        += 20.0f;
+        swarmMoveInterval  = 0.8f;   // yeni levelde timer sıfırla
+        dropPending        = false;
         enemyShootInterval *= 0.9f;
         initLevel();
         bullets.clear();
@@ -194,10 +229,10 @@ void GameManager::render() {
     window.clear(sf::Color::Black);
 
     player.draw(window);
-    for (auto& bullet : bullets) bullet.draw(window);
-    for (auto& enemy : enemies) enemy.draw(window);
-    for (auto& eBullet : enemyBullets) eBullet.draw(window);
-    for (auto& barrier : barriers) barrier.draw(window);
+    for (auto& bullet  : bullets)       bullet.draw(window);
+    for (auto& enemy   : enemies)       enemy.draw(window);
+    for (auto& eBullet : enemyBullets)  eBullet.draw(window);
+    for (auto& barrier : barriers)      barrier.draw(window);
 
     window.draw(scoreText);
     window.draw(livesText);

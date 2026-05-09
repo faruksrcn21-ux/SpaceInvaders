@@ -34,8 +34,13 @@ private:
     bool isGameOver;
 
     float swarmSpeed;
-    int swarmDirection;
+    int   swarmDirection;
     float dropDistance;
     float enemyShootTimer;
     float enemyShootInterval;
+
+
+    bool  dropPending;      // true -> bir sonraki adımda aşağı in + yön değiştir
+    float swarmMoveTimer;   // adım zamanlayıcısı
+    float swarmMoveInterval;// adımlar arası süre (saniye); düşman azaldıkça kısalır
 };
