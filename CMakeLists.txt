@@ -20,6 +20,13 @@ FetchContent_MakeAvailable(SFML)
 # Kaynak dosyalarımız
 add_executable(SpaceInvaders main.cpp GameManager.cpp Player.cpp Enemy.cpp Bullet.cpp Barrier.cpp)
 
+# Assets klasörünü build çıktısına kopyala
+add_custom_command(TARGET SpaceInvaders POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+    "$<CONFIG>/assets"
+)
+
 # SFML modüllerini bağla
 target_link_libraries(SpaceInvaders sfml-graphics sfml-window sfml-system sfml-audio)
 

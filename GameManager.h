@@ -17,6 +17,7 @@ private:
     void update(float deltaTime);
     void render();
     void initLevel();
+    void resetGame();
 
     sf::RenderWindow window;
     Player player;
@@ -27,11 +28,14 @@ private:
 
     sf::Font font;
     sf::Text scoreText, livesText, levelText, gameOverText;
+    sf::Text menuTitleText, menuSubText, winText, winSubText, restartHintText;
 
     int score;
     int lives;
     int level;
     bool isGameOver;
+
+    enum class State { Menu, Playing, GameOver, Win } gameState;
 
     float swarmSpeed;
     int   swarmDirection;
@@ -43,4 +47,11 @@ private:
     bool  dropPending;      // true -> bir sonraki adımda aşağı in + yön değiştir
     float swarmMoveTimer;   // adım zamanlayıcısı
     float swarmMoveInterval;// adımlar arası süre (saniye); düşman azaldıkça kısalır
+
+    // oyuncu dokunulmazlık
+    float invincibleTimer;          // > 0 iken oyuncu hasar almaz
+    static constexpr float INV_DURATION = 2.0f;   // saniye
+    static constexpr float BLINK_RATE   = 0.12f;  // saniye — yanıp sönme hızı
+    float blinkTimer;               // 0..BLINK_RATE arası sayar
+    bool  playerVisible;            // yanıp sönme için çizim flag'i
 };
