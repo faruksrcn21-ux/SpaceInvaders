@@ -3,26 +3,14 @@
 #include <ctime>
 #include <algorithm>  // std::remove_if
 #include <cstdio>     // printf
+#include "Enemy.h"    // EnemyType enum için
 
-GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders - YZM104") {
+GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders") {
     srand(time(0));
     score = 0;
     lives = 3;
     level = 1;
     isGameOver = false;
-
-
-    // ESKİ HATA:
-    //   "C:/Windows/Fonts/consola.ttf" sadece Windows'ta çalışıyor.
-    //   Linux/Mac'te hata verip font olmadan devam ediyordu → tüm
-    //   metinler (skor, can, level) ekranda görünmüyordu.
-    //
-    // YENİ MANTIK:
-    //   Önce proje klasöründeki assets/font.ttf denenir.
-    //   Bulunamazsa işletim sistemine göre sistem fontları denenir.
-    //   Hiçbiri bulunamazsa konsola açık bir hata mesajı yazılır.
-    //   assets/font.ttf için herhangi ücretsiz bir .ttf kopyalanabilir
-    //   (örn. DejaVuSansMono.ttf → assets/font.ttf olarak yeniden adlandır).
 
     bool fontLoaded = false;
 
@@ -96,9 +84,21 @@ void GameManager::initLevel() {
     int rows = 4; int cols = 8;
     float startX = 50.0f; float startY = 50.0f;
     float spacingX = 60.0f; float spacingY = 50.0f;
+ 
+    //   Her satıra farklı tip atanır
+    //   Sıra 0 (en üst)  → Tip A — Pembe   — 30 puan
+    //   Sıra 1-2         → Tip B — Turuncu  — 20 puan
+    //   Sıra 3 (en alt)  → Tip C — Kırmızı — 10 puan
     for (int i = 0; i < rows; i++) {
+        EnemyType type;
+        if      (i == 0) type = EnemyType::A;
+        else if (i <= 2) type = EnemyType::B;
+        else             type = EnemyType::C;
+ 
         for (int j = 0; j < cols; j++) {
-            enemies.push_back(Enemy(startX + j * spacingX, startY + i * spacingY));
+            enemies.push_back(
+                Enemy(startX + j * spacingX, startY + i * spacingY, type)
+            );
         }
     }
 }
@@ -126,19 +126,6 @@ void GameManager::update(float deltaTime) {
 
     player.update(deltaTime, bullets);
 
-
-    // ESKİ HATA:
-    //   for (int i = 0; i < bullets.size(); i++) içinde
-    //   bullets.erase(bullets.begin() + i) çağrısı iterator'ı geçersiz
-    //   kılıyor. Aynı döngüde devam etmek Undefined Behaviour.
-    
-    // YENİ MANTIK:
-    //   1. Tüm mermileri güncelle (konum, çarpışma).
-    //   2. Çarpışan veya ekran dışına çıkan mermileri "destroyed" flag'i
-    //      ile işaretle — döngü içinde silme yok.
-    //   3. Döngü bittikten sonra remove_if + erase ile tek seferde sil.
-    //      Bu C++ standardına uygun, güvenli "erase-remove" kalıbıdır.
-
     std::vector<bool> bulletAlive(bullets.size(), true);
 
     for (int i = 0; i < (int)bullets.size(); i++) {
@@ -155,8 +142,8 @@ void GameManager::update(float deltaTime) {
         for (auto& enemy : enemies) {
             if (!enemy.isAlive()) continue;
             if (bullets[i].getBounds().intersects(enemy.getBounds())) {
-                enemy.takeDamage(1);
-                score += 10;
+                enemy.takeDamage(1); 
+                score += enemy.getScore();   // puan: artık düşmandan soruyor                           
                 scoreText.setString("Skor: " + std::to_string(score));
                 hit = true;
                 break;
@@ -236,8 +223,6 @@ void GameManager::update(float deltaTime) {
     }
 
     // Ölü düşmanları güvenli sil
-    // ESKİ HATA: for döngüsü içinde erase() — UB
-    // YENİ: remove_if + erase kalıbı
     enemies.erase(
         std::remove_if(enemies.begin(), enemies.end(),
             [](const Enemy& e) { return !e.isAlive(); }),

@@ -1,16 +1,45 @@
 #include "Enemy.h"
 
-Enemy::Enemy(float startX, float startY) {
+// constructor tipe göre renk atar
+Enemy::Enemy(float startX, float startY, EnemyType type)
+    : type_(type)
+{
     shape.setSize(sf::Vector2f(40.0f, 30.0f));
-    shape.setFillColor(sf::Color::Red);
     shape.setPosition(startX, startY);
+
+    switch (type_) {
+        case EnemyType::A:
+            // Üst sıra — Pembe, en yüksek puan
+            shape.setFillColor(sf::Color(255, 0, 200));
+            break;
+        case EnemyType::B:
+            // Orta sıra — Turuncu, orta puan
+            shape.setFillColor(sf::Color(255, 140, 0));
+            break;
+        case EnemyType::C:
+            // Alt sıra — Kırmızı, en düşük puan 
+            shape.setFillColor(sf::Color::Red);
+            break;
+    }
+
     health = 1;
 }
 
 void Enemy::move(float offsetX, float offsetY) { shape.move(offsetX, offsetY); }
-void Enemy::draw(sf::RenderWindow& window) { window.draw(shape); }
-void Enemy::takeDamage(int damage) { health -= damage; }
-bool Enemy::isAlive() const { return health > 0; }
-float Enemy::getX() const { return shape.getPosition().x; }
-float Enemy::getY() const { return shape.getPosition().y; }
-sf::FloatRect Enemy::getBounds() const { return shape.getGlobalBounds(); }
+void Enemy::draw(sf::RenderWindow& window)      { window.draw(shape); }
+void Enemy::takeDamage(int damage)              { health -= damage; }
+bool Enemy::isAlive() const                     { return health > 0; }
+float Enemy::getX() const                      { return shape.getPosition().x; }
+float Enemy::getY() const                      { return shape.getPosition().y; }
+sf::FloatRect Enemy::getBounds() const         { return shape.getGlobalBounds(); }
+EnemyType Enemy::getType() const               { return type_; }
+
+// tipe göre puan döndür
+int Enemy::getScore() const {
+    switch (type_) {
+        case EnemyType::A: return 30;
+        case EnemyType::B: return 20;
+        case EnemyType::C: return 10;
+    }
+    return 10; // derleyici uyarısını engelle
+}
