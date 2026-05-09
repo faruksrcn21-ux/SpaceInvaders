@@ -30,6 +30,8 @@ private:
     sf::Text scoreText, livesText, levelText, gameOverText;
     sf::Text menuTitleText, menuSubText, winText, winSubText, restartHintText;
 
+    bool fontLoaded;
+
     int score;
     int lives;
     int level;
