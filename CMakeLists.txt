@@ -22,3 +22,7 @@ add_executable(SpaceInvaders main.cpp GameManager.cpp Player.cpp Enemy.cpp Bulle
 
 # SFML modüllerini bağla
 target_link_libraries(SpaceInvaders sfml-graphics sfml-window sfml-system sfml-audio)
+
+# COMMIT 3: assets klasörünü (font.ttf dahil) build dizinine kopyala
+# cmake --build sonrası exe ile aynı klasörde assets/font.ttf olacak
+file(COPY assets DESTINATION ${CMAKE_BINARY_DIR})

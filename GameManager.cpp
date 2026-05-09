@@ -1,6 +1,8 @@
 #include "GameManager.h"
 #include <cstdlib>
 #include <ctime>
+#include <algorithm>  // std::remove_if
+#include <cstdio>     // printf
 
 GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders - YZM104") {
     srand(time(0));
@@ -9,9 +11,53 @@ GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders - Y
     level = 1;
     isGameOver = false;
 
-    if (!font.loadFromFile("C:/Windows/Fonts/consola.ttf")) {
-        printf("Font yuklenemedi!\n");
-    }
+
+    // ESKİ HATA:
+    //   "C:/Windows/Fonts/consola.ttf" sadece Windows'ta çalışıyor.
+    //   Linux/Mac'te hata verip font olmadan devam ediyordu → tüm
+    //   metinler (skor, can, level) ekranda görünmüyordu.
+    //
+    // YENİ MANTIK:
+    //   Önce proje klasöründeki assets/font.ttf denenir.
+    //   Bulunamazsa işletim sistemine göre sistem fontları denenir.
+    //   Hiçbiri bulunamazsa konsola açık bir hata mesajı yazılır.
+    //   assets/font.ttf için herhangi ücretsiz bir .ttf kopyalanabilir
+    //   (örn. DejaVuSansMono.ttf → assets/font.ttf olarak yeniden adlandır).
+
+    bool fontLoaded = false;
+
+    // 1. Projeye dahil edilmiş font (tüm platformlarda çalışır)
+    fontLoaded = font.loadFromFile("assets/font.ttf");
+
+    // 2. Windows sistem fontları
+    if (!fontLoaded)
+        fontLoaded = font.loadFromFile("C:/Windows/Fonts/consola.ttf");
+    if (!fontLoaded)
+        fontLoaded = font.loadFromFile("C:/Windows/Fonts/arial.ttf");
+
+    // 3. Linux sistem fontları
+    if (!fontLoaded)
+        fontLoaded = font.loadFromFile(
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf");
+    if (!fontLoaded)
+        fontLoaded = font.loadFromFile(
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf");
+    if (!fontLoaded)
+        fontLoaded = font.loadFromFile(
+            "/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf");
+
+    // 4. macOS sistem fontları
+    if (!fontLoaded)
+        fontLoaded = font.loadFromFile(
+            "/Library/Fonts/Courier New.ttf");
+    if (!fontLoaded)
+        fontLoaded = font.loadFromFile(
+            "/System/Library/Fonts/Supplemental/Courier New.ttf");
+
+    if (!fontLoaded)
+        printf("[UYARI] Font yuklenemedi! Metinler gorunmeyecek.\n"
+               "        Cozum: Herhangi bir .ttf dosyasini 'assets/font.ttf'\n"
+               "        olarak proje klasorune kopyalayin.\n");
 
     scoreText.setFont(font); scoreText.setCharacterSize(20); scoreText.setFillColor(sf::Color::White);
     scoreText.setPosition(20.f, 20.f); scoreText.setString("Skor: 0");
@@ -32,16 +78,15 @@ GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders - Y
     barriers.push_back(Barrier(350.0f, 450.0f));
     barriers.push_back(Barrier(600.0f, 450.0f));
 
-    swarmSpeed        = 100.0f;
-    swarmDirection    = 1;
-    dropDistance      = 20.0f;
-    enemyShootTimer   = 0.0f;
-    enemyShootInterval= 1.0f;
+    swarmSpeed         = 100.0f;
+    swarmDirection     = 1;
+    dropDistance       = 20.0f;
+    enemyShootTimer    = 0.0f;
+    enemyShootInterval = 1.0f;
 
-    // COMMIT 1: adım zamanlayıcısı ve dropPending başlatıldı
-    dropPending       = false;
-    swarmMoveTimer    = 0.0f;
-    swarmMoveInterval = 0.8f;  // başlangıçta her 0.8 sn'de bir adım
+    dropPending        = false;
+    swarmMoveTimer     = 0.0f;
+    swarmMoveInterval  = 0.8f;
 
     initLevel();
 }
@@ -62,7 +107,7 @@ void GameManager::run() {
     sf::Clock clock;
     while (window.isOpen()) {
         float deltaTime = clock.restart().asSeconds();
-        if (deltaTime > 0.05f) deltaTime = 0.05f; // pencere sürükleme spike'ını engelle
+        if (deltaTime > 0.05f) deltaTime = 0.05f;
         processEvents();
         update(deltaTime);
         render();
@@ -81,55 +126,82 @@ void GameManager::update(float deltaTime) {
 
     player.update(deltaTime, bullets);
 
+
+    // ESKİ HATA:
+    //   for (int i = 0; i < bullets.size(); i++) içinde
+    //   bullets.erase(bullets.begin() + i) çağrısı iterator'ı geçersiz
+    //   kılıyor. Aynı döngüde devam etmek Undefined Behaviour.
+    
+    // YENİ MANTIK:
+    //   1. Tüm mermileri güncelle (konum, çarpışma).
+    //   2. Çarpışan veya ekran dışına çıkan mermileri "destroyed" flag'i
+    //      ile işaretle — döngü içinde silme yok.
+    //   3. Döngü bittikten sonra remove_if + erase ile tek seferde sil.
+    //      Bu C++ standardına uygun, güvenli "erase-remove" kalıbıdır.
+
+    std::vector<bool> bulletAlive(bullets.size(), true);
+
     for (int i = 0; i < (int)bullets.size(); i++) {
         bullets[i].update(deltaTime);
-        bool bulletDestroyed = false;
 
-        for (int j = 0; j < (int)enemies.size(); j++) {
-            if (bullets[i].getBounds().intersects(enemies[j].getBounds())) {
-                enemies[j].takeDamage(1);
-                bulletDestroyed = true;
+        // Ekran dışına çıktıysa işaretle
+        if (bullets[i].getY() < 0) {
+            bulletAlive[i] = false;
+            continue;
+        }
+
+        // Düşmanlara çarpışma
+        bool hit = false;
+        for (auto& enemy : enemies) {
+            if (!enemy.isAlive()) continue;
+            if (bullets[i].getBounds().intersects(enemy.getBounds())) {
+                enemy.takeDamage(1);
                 score += 10;
                 scoreText.setString("Skor: " + std::to_string(score));
+                hit = true;
                 break;
             }
         }
+        if (hit) { bulletAlive[i] = false; continue; }
 
-        if (!bulletDestroyed) {
-            for (auto& barrier : barriers) {
-                auto& blocks = barrier.getBlocks();
-                for (int k = 0; k < (int)blocks.size(); k++) {
-                    if (bullets[i].getBounds().intersects(blocks[k].getGlobalBounds())) {
-                        blocks.erase(blocks.begin() + k);
-                        bulletDestroyed = true;
-                        break;
-                    }
+        // Bariyerlere çarpışma
+        for (auto& barrier : barriers) {
+            auto& blocks = barrier.getBlocks();
+            for (int k = 0; k < (int)blocks.size(); k++) {
+                if (bullets[i].getBounds().intersects(blocks[k].getGlobalBounds())) {
+                    blocks.erase(blocks.begin() + k);  // bariyer bloğu silinir — bu güvenli
+                    bulletAlive[i] = false;
+                    hit = true;
+                    break;
                 }
-                if (bulletDestroyed) break;
             }
-        }
-
-        if (bulletDestroyed || bullets[i].getY() < 0) {
-            bullets.erase(bullets.begin() + i);
-            i--;
+            if (hit) break;
         }
     }
+
+    // Ölü mermileri tek seferde sil (erase-remove kalıbı)
+    {
+        int idx = 0;
+        bullets.erase(
+            std::remove_if(bullets.begin(), bullets.end(),
+                [&](const Bullet&) { return !bulletAlive[idx++]; }),
+            bullets.end()
+        );
+    }
+
+    // Formasyon hareketi 
     swarmMoveTimer += deltaTime;
     if (swarmMoveTimer >= swarmMoveInterval) {
         swarmMoveTimer = 0.0f;
 
         if (dropPending) {
-            // Önceki adımda kenara vurulmuştu: aşağı in + yön değiştir
             for (auto& enemy : enemies)
                 enemy.move(0.0f, dropDistance);
             swarmDirection *= -1;
             dropPending = false;
         } else {
-            // Normal yatay adım
             float step = swarmSpeed * swarmDirection * swarmMoveInterval;
             bool hitWall = false;
-
-            // Önce sınır kontrolü yap, hareket ettirme
             for (auto& enemy : enemies) {
                 float nextX = enemy.getX() + step;
                 if (nextX <= 0.0f || nextX >= 800.0f - 40.0f) {
@@ -137,20 +209,15 @@ void GameManager::update(float deltaTime) {
                     break;
                 }
             }
-
             if (hitWall) {
-                // Bu adımda hareket etme, sadece bayrağı set et
                 dropPending = true;
             } else {
-                // Güvenli: tümünü hareket ettir
                 for (auto& enemy : enemies)
                     enemy.move(step, 0.0f);
             }
 
-            // Hayatta kalan düşman sayısına göre hızlan
-            // Düşman azaldıkça swarmMoveInterval kısalır (daha sık adım)
             int aliveCount = (int)enemies.size();
-            int totalCount = 4 * 8; // rows * cols
+            int totalCount = 4 * 8;
             float ratio = 1.0f - (float)aliveCount / (float)totalCount;
             swarmMoveInterval = 0.8f * (1.0f - ratio * 0.75f);
             if (swarmMoveInterval < 0.05f) swarmMoveInterval = 0.05f;
@@ -168,47 +235,63 @@ void GameManager::update(float deltaTime) {
         enemyShootInterval = 0.5f + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / 1.0f));
     }
 
-    // Ölü düşmanları sil 
-    for (int i = 0; i < (int)enemies.size(); i++) {
-        if (!enemies[i].isAlive()) {
-            enemies.erase(enemies.begin() + i);
-            i--;
-        }
-    }
+    // Ölü düşmanları güvenli sil
+    // ESKİ HATA: for döngüsü içinde erase() — UB
+    // YENİ: remove_if + erase kalıbı
+    enemies.erase(
+        std::remove_if(enemies.begin(), enemies.end(),
+            [](const Enemy& e) { return !e.isAlive(); }),
+        enemies.end()
+    );
 
-    // Düşman mermileri
+    // Düşman mermileri — aynı güvenli kalıp
+    std::vector<bool> eBulletAlive(enemyBullets.size(), true);
+
     for (int i = 0; i < (int)enemyBullets.size(); i++) {
         enemyBullets[i].update(deltaTime);
-        bool eBulletDestroyed = false;
 
+        // Ekran dışına çıktıysa
+        if (enemyBullets[i].getY() > 600) {
+            eBulletAlive[i] = false;
+            continue;
+        }
+
+        // Oyuncuya çarpışma
         if (enemyBullets[i].getBounds().intersects(player.getBounds())) {
             lives--;
             livesText.setString("Can: " + std::to_string(lives));
-            eBulletDestroyed = true;
+            eBulletAlive[i] = false;
             if (lives <= 0) {
                 isGameOver = true;
                 window.setTitle("Space Invaders - GAME OVER!");
             }
+            continue;
         }
 
-        if (!eBulletDestroyed) {
-            for (auto& barrier : barriers) {
-                auto& blocks = barrier.getBlocks();
-                for (int k = 0; k < (int)blocks.size(); k++) {
-                    if (enemyBullets[i].getBounds().intersects(blocks[k].getGlobalBounds())) {
-                        blocks.erase(blocks.begin() + k);
-                        eBulletDestroyed = true;
-                        break;
-                    }
+        // Bariyerlere çarpışma
+        bool hit = false;
+        for (auto& barrier : barriers) {
+            auto& blocks = barrier.getBlocks();
+            for (int k = 0; k < (int)blocks.size(); k++) {
+                if (enemyBullets[i].getBounds().intersects(blocks[k].getGlobalBounds())) {
+                    blocks.erase(blocks.begin() + k);
+                    eBulletAlive[i] = false;
+                    hit = true;
+                    break;
                 }
-                if (eBulletDestroyed) break;
             }
+            if (hit) break;
         }
+    }
 
-        if (eBulletDestroyed || enemyBullets[i].getY() > 600) {
-            enemyBullets.erase(enemyBullets.begin() + i);
-            i--;
-        }
+    // Ölü düşman mermilerini tek seferde sil
+    {
+        int idx = 0;
+        enemyBullets.erase(
+            std::remove_if(enemyBullets.begin(), enemyBullets.end(),
+                [&](const Bullet&) { return !eBulletAlive[idx++]; }),
+            enemyBullets.end()
+        );
     }
 
     // Seviye atlama 
@@ -216,7 +299,7 @@ void GameManager::update(float deltaTime) {
         level++;
         levelText.setString("Seviye: " + std::to_string(level));
         swarmSpeed        += 20.0f;
-        swarmMoveInterval  = 0.8f;   // yeni levelde timer sıfırla
+        swarmMoveInterval  = 0.8f;
         dropPending        = false;
         enemyShootInterval *= 0.9f;
         initLevel();
@@ -229,10 +312,10 @@ void GameManager::render() {
     window.clear(sf::Color::Black);
 
     player.draw(window);
-    for (auto& bullet  : bullets)       bullet.draw(window);
-    for (auto& enemy   : enemies)       enemy.draw(window);
-    for (auto& eBullet : enemyBullets)  eBullet.draw(window);
-    for (auto& barrier : barriers)      barrier.draw(window);
+    for (auto& bullet  : bullets)      bullet.draw(window);
+    for (auto& enemy   : enemies)      enemy.draw(window);
+    for (auto& eBullet : enemyBullets) eBullet.draw(window);
+    for (auto& barrier : barriers)     barrier.draw(window);
 
     window.draw(scoreText);
     window.draw(livesText);
