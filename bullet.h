@@ -10,7 +10,11 @@ public:
     sf::FloatRect getBounds() const;
 
 private:
-    sf::RectangleShape shape;
+    // çekirdek + hale (aura) çift katman
+    sf::RectangleShape core;   // asıl mermi şekli + çarpışma
+    sf::RectangleShape aura;   // parlama efekti (görsel)
+ 
     float speed;
     float direction;
+    sf::Color color_;
 };

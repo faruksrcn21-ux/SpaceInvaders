@@ -10,4 +10,6 @@ public:
 
 private:
     std::vector<sf::RectangleShape> blocks;
+    // Her bloğun HP'si — renk için (3=yeşil 2=sarı 1=kırmızı 0=ölü)
+    std::vector<int> blockHp;
 };
