@@ -1,12 +1,10 @@
 #include "Player.h"
 
-#include "Player.h"
-
 // Oyuncu gemisi görünümü
 Player::Player() {
     movementSpeed = 300.0f;
     shootTimer    = 0.0f;
-    shootCooldown = 0.2f;
+    shootCooldown = 0.45f;  // hız ayarı: 0.2→0.45 (daha az sık ateş)
     pos = sf::Vector2f(375.0f, 550.0f);
 
     // Ana gövde — sivri üçgen

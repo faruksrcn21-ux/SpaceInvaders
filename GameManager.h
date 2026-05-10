@@ -6,6 +6,7 @@
 #include "Enemy.h"
 #include "Barrier.h"
 #include "Bullet.h"
+#include "Explosion.h"
 
 class GameManager {
 public:
@@ -25,13 +26,13 @@ private:
     std::vector<Bullet> enemyBullets;
     std::vector<Enemy> enemies;
     std::vector<Barrier> barriers;
-
+    std::vector<Explosion> explosions;
     sf::Font font;
     sf::Text scoreText, livesText, levelText, gameOverText;
     sf::Text menuTitleText, menuSubText, winText, winSubText, restartHintText;
 
     bool fontLoaded;
-
+    
     int score;
     int lives;
     int level;

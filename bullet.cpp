@@ -2,7 +2,7 @@
 
 // Mermi görünümleri
 Bullet::Bullet(float startX, float startY, float dir, sf::Color color)
-    : direction(dir), speed(500.f), color_(color)
+    : direction(dir), speed(280.f), color_(color)  // hız ayarı: 500→280
 {
     if (dir < 0) {
         // Oyuncu mermisi — lazer çekirdeği

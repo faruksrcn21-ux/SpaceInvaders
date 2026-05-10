@@ -103,6 +103,7 @@ void GameManager::resetGame() {
     invincibleTimer = 0.f; blinkTimer = 0.f; playerVisible = true;
 
     bullets.clear(); enemyBullets.clear();
+    explosions.clear(); // Patlama particle sistemi
 
     barriers.clear();
     barriers.push_back(Barrier(100.f, 450.f));
@@ -186,9 +187,21 @@ void GameManager::update(float DeltaTime) {
                 enemy.takeDamage(1);
                 score += enemy.getScore();
                 scoreText.setString("Skor: " + std::to_string(score));
+                // düşman ölünce patlama — rengi tipine göre
+                sf::Color expColor;
+                switch (enemy.getType()) {
+                    case EnemyType::A: expColor = sf::Color(255, 80,  220); break;
+                    case EnemyType::B: expColor = sf::Color(255, 160,  40); break;
+                    case EnemyType::C: expColor = sf::Color(255,  80,  80); break;
+                }
+                explosions.emplace_back(
+                    enemy.getX() + 20.f, enemy.getY() + 15.f, expColor, 14);
+ 
                 hit = true; break;
             }
         }
+        if (hit) { bulletAlive[i] = false; continue; }
+
         for (auto& barrier : barriers) {
             auto& blocks = barrier.getBlocks();
             auto& hpList = barrier.getBlockHp();
@@ -242,6 +255,11 @@ void GameManager::update(float DeltaTime) {
     enemies.erase(std::remove_if(enemies.begin(), enemies.end(),
         [](const Enemy& e){ return !e.isAlive(); }), enemies.end());
 
+        // patlama güncelle + biten patlama sil
+    for (auto& exp : explosions) exp.update(DeltaTime);
+    explosions.erase(std::remove_if(explosions.begin(), explosions.end(),
+        [](const Explosion& e){ return e.isFinished(); }), explosions.end());
+ 
     // Düşman tabana inince Game Over
     if (gameState == State::Playing) {
         for (auto& enemy : enemies) {
@@ -264,6 +282,14 @@ void GameManager::update(float DeltaTime) {
             lives--;
             livesText.setString("Can: " + std::to_string(lives));
             eBulletAlive[i] = false;
+
+            // oyuncu vurulunca küçük beyaz patlama
+            sf::FloatRect pb = player.getBounds();
+            explosions.emplace_back(
+                pb.left + pb.width / 2.f,
+                pb.top  + pb.height / 2.f,
+                sf::Color(255, 255, 180), 8);
+ 
             if (lives <= 0) {
                 gameState = State::GameOver;
             } else {
@@ -356,6 +382,7 @@ void GameManager::render() {
         for (auto& eBullet : enemyBullets) eBullet.draw(window);
         for (auto& barrier : barriers)     barrier.draw(window);
         if (playerVisible) player.draw(window);
+        for (auto& exp : explosions)       exp.draw(window);
 
         window.draw(scoreText);
         window.draw(livesText);
