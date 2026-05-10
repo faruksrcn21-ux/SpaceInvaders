@@ -29,6 +29,8 @@ private:
     std::vector<Barrier> barriers;
     std::vector<Explosion> explosions;
     SoundManager sound_;
+    float kamikazeTimer_    = 0.f;
+    float kamikazeInterval_ = 8.f;  // her 8 saniyede bir kamikaze dalar
     sf::Font font;
     sf::Text scoreText, livesText, levelText, gameOverText;
     sf::Text menuTitleText, menuSubText, winText, winSubText, restartHintText;

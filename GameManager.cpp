@@ -104,6 +104,9 @@ void GameManager::resetGame() {
 
     bullets.clear(); enemyBullets.clear();
     explosions.clear(); // Patlama particle sistemi
+    kamikazeTimer_    = 0.f;
+    kamikazeInterval_ = 8.f;
+
 
     barriers.clear();
     barriers.push_back(Barrier(100.f, 450.f));
@@ -231,22 +234,27 @@ void GameManager::update(float DeltaTime) {
     if (swarmMoveTimer >= swarmMoveInterval) {
         swarmMoveTimer = 0.f;
         if (dropPending) {
-            for (auto& e : enemies) e.move(0.f, dropDistance);
+            for (auto& e : enemies)
+                if (!e.isKamikaze()) e.move(0.f, dropDistance);
             swarmDirection *= -1; dropPending = false;
         } else {
             float step = swarmSpeed * swarmDirection * swarmMoveInterval;
             bool hitWall = false;
             for (auto& e : enemies) {
+                if (e.isKamikaze()) continue;  // kamikaze duvar kontrolü dışı
                 float nx = e.getX() + step;
                 if (nx <= 0.f || nx >= 760.f) { hitWall = true; break; }
             }
             if (hitWall) dropPending = true;
-            else for (auto& e : enemies) e.move(step, 0.f);
+            // kamikaze olan düşmanlar formasyon dışı
+            else for (auto& e : enemies)
+                if (!e.isKamikaze()) e.move(step, 0.f);
             float ratio = 1.f - (float)enemies.size() / 32.f;
             swarmMoveInterval = 0.8f * (1.f - ratio * 0.75f);
             if (swarmMoveInterval < 0.05f) swarmMoveInterval = 0.05f;
         }
     }
+ 
 
     // Düşman ateşi
     enemyShootTimer += DeltaTime;
@@ -263,6 +271,73 @@ void GameManager::update(float DeltaTime) {
     enemies.erase(std::remove_if(enemies.begin(), enemies.end(),
         [](const Enemy& e){ return !e.isAlive(); }), enemies.end());
 
+    // Kamikaze sistemi
+    // Her 8 saniyede bir, hayatta olan Tip C düşmanlardan rastgele
+    // biri kamikaze moduna geçer ve oyuncuya doğru dalar.
+    // Kamikaze düşman formasyon hareketinden bağımsız hareket eder.
+    // Oyuncuya veya ekran dışına ulaşınca ölür.
+    kamikazeTimer_ += DeltaTime;
+    if (kamikazeTimer_ >= kamikazeInterval_) {
+        kamikazeTimer_ = 0.f;
+ 
+        // Tip C ve henüz kamikaze olmayan düşmanları topla
+        std::vector<int> candidates;
+        for (int i = 0; i < (int)enemies.size(); i++) {
+            if (enemies[i].getType() == EnemyType::C &&
+                !enemies[i].isKamikaze())
+                candidates.push_back(i);
+        }
+ 
+        if (!candidates.empty()) {
+            int pick = candidates[rand() % candidates.size()];
+            // Oyuncunun orta noktasını hedef al
+            sf::FloatRect pb = player.getBounds();
+            float tx = pb.left + pb.width  / 2.f;
+            float ty = pb.top  + pb.height / 2.f;
+            enemies[pick].activateKamikaze(tx, ty);
+        }
+ 
+        // Seviye arttıkça daha sık kamikaze
+        kamikazeInterval_ = std::max(3.f, 8.f - level * 0.8f);
+    }
+ 
+    // Kamikaze düşmanları güncelle
+    for (auto& e : enemies) {
+        if (!e.isKamikaze()) continue;
+        e.updateKamikaze(DeltaTime);
+ 
+        // Oyuncuya çarptı mı?
+        if (invincibleTimer <= 0.f &&
+            e.getBounds().intersects(player.getBounds()))
+        {
+            e.takeDamage(1);  // kamikaze düşman da ölür
+            lives--;
+            livesText.setString("Can: " + std::to_string(lives));
+ 
+            sf::FloatRect pb = player.getBounds();
+            explosions.emplace_back(
+                pb.left + pb.width  / 2.f,
+                pb.top  + pb.height / 2.f,
+                sf::Color(255, 200, 80), 16);  // büyük turuncu patlama
+            sound_.playExplosion();
+            sound_.playPlayerHit();
+ 
+            if (lives <= 0) {
+                gameState = State::GameOver;
+            } else {
+                invincibleTimer = INV_DURATION;
+                blinkTimer = 0.f; playerVisible = true;
+            }
+        }
+ 
+        // Ekran dışına çıktıysa öldür
+        if (e.hasReachedTarget()) e.takeDamage(1);
+    }
+ 
+    // Ölü kamikazeler de temizlenir (yukarıdaki remove_if zaten halleder)
+    enemies.erase(std::remove_if(enemies.begin(), enemies.end(),
+        [](const Enemy& e){ return !e.isAlive(); }), enemies.end());
+
         // patlama güncelle + biten patlama sil
     for (auto& exp : explosions) exp.update(DeltaTime);
     explosions.erase(std::remove_if(explosions.begin(), explosions.end(),
@@ -271,7 +346,7 @@ void GameManager::update(float DeltaTime) {
     // Düşman tabana inince Game Over
     if (gameState == State::Playing) {
         for (auto& enemy : enemies) {
-            if (enemy.getY() + 30.f >= 420.f) {  // 30 = düşman yüksekliği
+            if (!enemy.isKamikaze() && enemy.getY() + 30.f >= 420.f) {  // 30 = düşman yüksekliği
                 gameState = State::GameOver;
                 break;
             }

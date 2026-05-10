@@ -1,4 +1,5 @@
 #include "Enemy.h"
+#include <cmath> 
 
 // -Düşman görünümleri — tipe göre farklı şekil
 Enemy::Enemy(float startX, float startY, EnemyType type)
@@ -219,4 +220,38 @@ int Enemy::getScore() const {
         case EnemyType::C: return 10;
     }
     return 10;
+}
+
+
+// Kamikaze implementasyonu 
+// activateKamikaze: hedef pozisyona doğru hız vektörü hesapla
+void Enemy::activateKamikaze(float targetX, float targetY) {
+    if (type_ != EnemyType::C) return;  // sadece Tip C
+    kamikaze_ = true;
+ 
+    // Düşmandan hedefe yön vektörü
+    float cx = body.getPosition().x + 20.f; // düşman merkezi
+    float cy = body.getPosition().y + 15.f;
+    float dx = targetX - cx;
+    float dy = targetY - cy;
+    float len = std::sqrt(dx * dx + dy * dy);
+    if (len < 1.f) len = 1.f;
+ 
+    // Normalleştir + hız uygula
+    kamikazeVel_ = { (dx / len) * kamikazeSpeed_,
+                     (dy / len) * kamikazeSpeed_ };
+}
+ 
+// updateKamikaze: her frame bağımsız hareket
+void Enemy::updateKamikaze(float dt) {
+    if (!kamikaze_ || !isAlive()) return;
+    body.move(kamikazeVel_ * dt);
+    animFrame = 1 - animFrame; // hızlı animasyon
+}
+ 
+// hasReachedTarget: ekran dışına çıktıysa temizle
+bool Enemy::hasReachedTarget() const {
+    float y = body.getPosition().y;
+    float x = body.getPosition().x;
+    return (y > 620.f || y < -50.f || x < -60.f || x > 860.f);
 }
