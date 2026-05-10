@@ -12,11 +12,9 @@ static void centreX(sf::Text& t, float windowWidth) {
     t.setPosition(windowWidth / 2.f, t.getPosition().y);
 }
 
-GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders - YZM104") {
-    srand(time(0));
+GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders") {
+    srand((unsigned int)time(0));
 
-    // Font yükleme
-    bool fontLoaded = false;
     fontLoaded = font.loadFromFile("assets/font.ttf");
     if (!fontLoaded) fontLoaded = font.loadFromFile("C:/Windows/Fonts/consola.ttf");
     if (!fontLoaded) fontLoaded = font.loadFromFile("C:/Windows/Fonts/arial.ttf");
@@ -25,6 +23,7 @@ GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders - Y
     if (!fontLoaded) fontLoaded = font.loadFromFile("/Library/Fonts/Courier New.ttf");
     if (!fontLoaded)
         printf("[UYARI] Font yuklenemedi! 'assets/font.ttf' ekleyin.\n");
+    
 
     // HUD metinleri
     scoreText.setFont(font); scoreText.setCharacterSize(20); scoreText.setFillColor(sf::Color::White);
@@ -87,6 +86,7 @@ GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders - Y
     score = 0; lives = 3; level = 1; isGameOver = false;
 
     initLevel();
+    sound_.startMusic(); //müziği başlat
 }
 
 // resetGame — tüm oyun değişkenlerini sıfırla
@@ -165,7 +165,12 @@ void GameManager::update(float DeltaTime) {
     // Menü ve bitiş ekranlarında oyun mantığı çalışmaz
     if (gameState != State::Playing) return;
 
+    // atış sesi — bullet eklendiyse çal
+    int bulletsBefore = (int)bullets.size();
     player.update(DeltaTime, bullets);
+    if ((int)bullets.size() > bulletsBefore)
+        sound_.playShoot();
+    
 
     // Dokunulmazlık zamanlayıcısı
     if (invincibleTimer > 0.f) {
@@ -187,16 +192,18 @@ void GameManager::update(float DeltaTime) {
                 enemy.takeDamage(1);
                 score += enemy.getScore();
                 scoreText.setString("Skor: " + std::to_string(score));
-                // düşman ölünce patlama — rengi tipine göre
+                // düşman ölünce patlama — rengi tipine göre (DISABLED)
                 sf::Color expColor;
                 switch (enemy.getType()) {
-                    case EnemyType::A: expColor = sf::Color(255, 80,  220); break;
-                    case EnemyType::B: expColor = sf::Color(255, 160,  40); break;
-                    case EnemyType::C: expColor = sf::Color(255,  80,  80); break;
-                }
-                explosions.emplace_back(
-                    enemy.getX() + 20.f, enemy.getY() + 15.f, expColor, 14);
+                     case EnemyType::A: expColor = sf::Color(255, 80,  220); break;
+                     case EnemyType::B: expColor = sf::Color(255, 160,  40); break;
+                     case EnemyType::C: expColor = sf::Color(255,  80,  80); break;
+                 }
+                 explosions.emplace_back(
+                     enemy.getX() + 20.f, enemy.getY() + 15.f, expColor, 14);
  
+                 sound_.playExplosion(); // düşman vurulma sesi
+
                 hit = true; break;
             }
         }
@@ -247,6 +254,7 @@ void GameManager::update(float DeltaTime) {
         int idx = rand() % enemies.size();
         enemyBullets.push_back(Bullet(enemies[idx].getX() + 20.f,
                                       enemies[idx].getY() + 30.f, 1.f, sf::Color::Red));
+        sound_.playEnemyShoot(); // düşman ateş sesi                              
         enemyShootTimer = 0.f;
         enemyShootInterval = 0.5f + (float)rand() / (float)(RAND_MAX / 1.5f);
     }
@@ -258,7 +266,7 @@ void GameManager::update(float DeltaTime) {
         // patlama güncelle + biten patlama sil
     for (auto& exp : explosions) exp.update(DeltaTime);
     explosions.erase(std::remove_if(explosions.begin(), explosions.end(),
-        [](const Explosion& e){ return e.isFinished(); }), explosions.end());
+         [](const Explosion& e){ return e.isFinished(); }), explosions.end());
  
     // Düşman tabana inince Game Over
     if (gameState == State::Playing) {
@@ -289,7 +297,8 @@ void GameManager::update(float DeltaTime) {
                 pb.left + pb.width / 2.f,
                 pb.top  + pb.height / 2.f,
                 sf::Color(255, 255, 180), 8);
- 
+            sound_.playPlayerHit(); // oyuncu hasar sesi
+                
             if (lives <= 0) {
                 gameState = State::GameOver;
             } else {

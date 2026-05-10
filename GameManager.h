@@ -7,6 +7,7 @@
 #include "Barrier.h"
 #include "Bullet.h"
 #include "Explosion.h"
+#include "SoundManager.h"
 
 class GameManager {
 public:
@@ -27,6 +28,7 @@ private:
     std::vector<Enemy> enemies;
     std::vector<Barrier> barriers;
     std::vector<Explosion> explosions;
+    SoundManager sound_;
     sf::Font font;
     sf::Text scoreText, livesText, levelText, gameOverText;
     sf::Text menuTitleText, menuSubText, winText, winSubText, restartHintText;
