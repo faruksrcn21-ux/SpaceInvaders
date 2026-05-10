@@ -21,23 +21,23 @@ Barrier::Barrier(float startX, float startY) {
             block.setOutlineThickness(1.0f);
             block.setPosition(startX + j * 15.0f, startY + i * 15.0f);
             blocks.push_back(block);
-
-            // Her blok için başlangıç HP = 3
-            blockHp.push_back(3);
+            blockHp.push_back(3);// Her blok için başlangıç HP = 3
         }
     }
 }
 
 void Barrier::draw(sf::RenderWindow& window) {
     for (int i = 0; i < (int)blocks.size(); i++) {
-        if (blockHp[i] > 0) {
-            // Rengi HP'ye göre güncelle
-            blocks[i].setFillColor(hpColor(blockHp[i]));
-            window.draw(blocks[i]);
-        }
+        if (blockHp[i] <= 0) continue;         // ölü blok çizilmez
+        blocks[i].setFillColor(hpColor(blockHp[i]));
+        window.draw(blocks[i]);
     }
 }
 
 std::vector<sf::RectangleShape>& Barrier::getBlocks() {
     return blocks;
+}
+
+std::vector<int>& Barrier::getBlockHp() {
+    return blockHp;
 }

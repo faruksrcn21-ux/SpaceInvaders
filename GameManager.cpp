@@ -46,11 +46,12 @@ GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders - Y
     menuTitleText.setFillColor(sf::Color::Cyan);
     menuTitleText.setString("SPACE INVADERS");
     centreX(menuTitleText, 800.f); menuTitleText.setPosition(menuTitleText.getPosition().x, 160.f);
-
+ 
     menuSubText.setFont(font); menuSubText.setCharacterSize(22);
     menuSubText.setFillColor(sf::Color::White);
-    menuSubText.setString("Ok tusları: Hareket     Bosluk: Ates");
+    menuSubText.setString("Ok tuslari: Hareket     Bosluk: Ates");
     centreX(menuSubText, 800.f); menuSubText.setPosition(menuSubText.getPosition().x, 290.f);
+
 
     // Kazanma metni
     winText.setFont(font); winText.setCharacterSize(72);
@@ -188,13 +189,16 @@ void GameManager::update(float DeltaTime) {
                 hit = true; break;
             }
         }
-        if (hit) { bulletAlive[i] = false; continue; }
         for (auto& barrier : barriers) {
             auto& blocks = barrier.getBlocks();
+            auto& hpList = barrier.getBlockHp();
             for (int k = 0; k < (int)blocks.size(); k++) {
+                if (hpList[k] <= 0) continue;
                 if (bullets[i].getBounds().intersects(blocks[k].getGlobalBounds())) {
-                    blocks.erase(blocks.begin() + k); bulletAlive[i] = false; hit = true; break;
-                }
+                    hpList[k]--;
+                    if (hpList[k] <= 0)
+                        blocks[k].setSize(sf::Vector2f(0.f, 0.f)); // görünmez
+                    bulletAlive[i] = false; hit = true; break;                }
             }
             if (hit) break;
         }
@@ -286,13 +290,30 @@ void GameManager::update(float DeltaTime) {
     if (enemies.empty() && gameState == State::Playing) {
         level++;
         levelText.setString("Seviye: " + std::to_string(level));
+        swarmSpeed        += 20.f;
+        swarmMoveInterval  = 0.8f;
+        dropPending        = false;
+        swarmDirection     = 1;
+        enemyShootInterval = std::max(0.3f, enemyShootInterval * 0.85f);
+        bullets.clear();
+        enemyBullets.clear();
+ 
+        // Bariyerleri kısmen onar (yeni seviyede avantaj)
+        barriers.clear();
+        barriers.push_back(Barrier(100.f, 450.f));
+        barriers.push_back(Barrier(350.f, 450.f));
+        barriers.push_back(Barrier(600.f, 450.f));
 
-        // Her 3 seviyede bir yeni level yerine win göster
-        // (basit tek-level oyun; sonraki committe multi-level yapılabilir)
-        winSubText.setString("Skor: " + std::to_string(score) +
-                             "   Seviye: " + std::to_string(level - 1));
-        centreX(winSubText, 800.f);
-        gameState = State::Win;
+        if (level > 3) {
+            // 3 seviyeyi geçtiyse kazandı
+            winSubText.setString("Skor: " + std::to_string(score) +
+                                 "   Seviye: " + std::to_string(level - 1));
+            centreX(winSubText, 800.f);
+            gameState = State::Win;
+        } else {
+            // Yeni dalga
+            initLevel();
+        }
     }
 }
 
