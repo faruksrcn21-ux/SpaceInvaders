@@ -34,13 +34,10 @@ private:
     sf::Font font;
     sf::Text scoreText, livesText, levelText, gameOverText;
     sf::Text menuTitleText, menuSubText, winText, winSubText, restartHintText;
-
-    bool fontLoaded;
     
     int score;
     int lives;
     int level;
-    bool isGameOver;
 
     enum class State { Menu, Playing, GameOver, Win } gameState;
 

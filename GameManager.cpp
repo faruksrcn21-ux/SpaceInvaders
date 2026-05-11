@@ -15,7 +15,8 @@ static void centreX(sf::Text& t, float windowWidth) {
 GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders") {
     srand((unsigned int)time(0));
 
-    fontLoaded = font.loadFromFile("assets/font.ttf");
+    // fontLoaded artık local değişken (member field değil)
+    bool fontLoaded = font.loadFromFile("assets/font.ttf");
     if (!fontLoaded) fontLoaded = font.loadFromFile("C:/Windows/Fonts/consola.ttf");
     if (!fontLoaded) fontLoaded = font.loadFromFile("C:/Windows/Fonts/arial.ttf");
     if (!fontLoaded) fontLoaded = font.loadFromFile("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf");
@@ -83,7 +84,7 @@ GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders") {
 
     // oyun menüden başlar
     gameState = State::Menu;
-    score = 0; lives = 3; level = 1; isGameOver = false;
+    score = 0; lives = 3; level = 1; 
 
     initLevel();
     sound_.startMusic(); //müziği başlat
@@ -91,7 +92,7 @@ GameManager::GameManager() : window(sf::VideoMode(800, 600), "Space Invaders") {
 
 // resetGame — tüm oyun değişkenlerini sıfırla
 void GameManager::resetGame() {
-    score = 0; lives = 3; level = 1; isGameOver = false;
+    score = 0; lives = 3; level = 1;
     scoreText.setString("Skor: 0");
     livesText.setString("Can: 3");
     levelText.setString("Seviye: 1");
@@ -385,9 +386,14 @@ void GameManager::update(float DeltaTime) {
         bool hit = false;
         for (auto& barrier : barriers) {
             auto& blocks = barrier.getBlocks();
+            auto& hpList = barrier.getBlockHp(); // hp tabanlı sistem
             for (int k = 0; k < (int)blocks.size(); k++) {
+                if (hpList[k] <= 0) continue; // zaten ölü blok, geç
                 if (enemyBullets[i].getBounds().intersects(blocks[k].getGlobalBounds())) {
-                    blocks.erase(blocks.begin() + k); eBulletAlive[i] = false; hit = true; break;
+                    hpList[k]--;
+                    if (hpList[k] <= 0)
+                        blocks[k].setSize(sf::Vector2f(0.f, 0.f)); // görünmez
+                    eBulletAlive[i] = false; hit = true; break;
                 }
             }
             if (hit) break;
