@@ -86,6 +86,26 @@ void SoundManager::buildPlayerHitBuffer() {
     playerHitBuf_.loadFromSamples(s.data(), s.size(), 1, SAMPLE_RATE);
 }
 
+// UFO sesi: frekansı LFO ile dalgalanan sinüs (wawa efekti), 1 saniyelik döngü
+void SoundManager::buildUfoBuffer() {
+    float durationSec = 1.0f;
+    int count = static_cast<int>(SAMPLE_RATE * durationSec);
+    std::vector<sf::Int16> s(count);
+
+    float carrierFreq = 300.f;  // taşıyıcı frekans
+    float modFreq     = 8.f;    // 1 saniyede 8 kez dalgalanır
+    float modAmount   = 100.f;  // 300 +/- 100 Hz arası
+    float phase = 0.f;
+
+    for (int i = 0; i < count; i++) {
+        float t = static_cast<float>(i) / SAMPLE_RATE;
+        float currentFreq = carrierFreq + std::sin(2.f * PI * modFreq * t) * modAmount;
+        phase += 2.f * PI * currentFreq / SAMPLE_RATE;
+        s[i] = static_cast<sf::Int16>(std::sin(phase) * 0.3f * 32767.f);
+    }
+    ufoBuf_.loadFromSamples(s.data(), s.size(), 1, SAMPLE_RATE);
+}
+
 // Retro arkaplan müziği: basit 8-bit tarzı arpej dizisi
 // 4 nota → döngülü tekrar (sf::Sound::setLoop kullanıyoruz)
 void SoundManager::buildMusicBuffer() {
@@ -119,6 +139,7 @@ SoundManager::SoundManager() {
     buildEnemyShootBuffer();
     buildExplosionBuffer();
     buildPlayerHitBuffer();
+    buildUfoBuffer();
     buildMusicBuffer();
 
     // Soundları buffer'lara bağla
@@ -126,7 +147,12 @@ SoundManager::SoundManager() {
     enemyShootSnd_.setBuffer(enemyShootBuf_);
     explosionSnd_.setBuffer(explosionBuf_);
     playerHitSnd_.setBuffer(playerHitBuf_);
+    ufoSnd_.setBuffer(ufoBuf_);
     musicSnd_.setBuffer(musicBuf_);
+
+    // UFO döngülü çalar
+    ufoSnd_.setLoop(true);
+    ufoSnd_.setVolume(60.f);
 
     // Arkaplan müziği döngülü
     musicSnd_.setLoop(true);
@@ -163,6 +189,16 @@ void SoundManager::playPlayerHit() {
     playerHitSnd_.play();
 }
 
+void SoundManager::playUfo() {
+    if (muted_) return;
+    if (ufoSnd_.getStatus() != sf::Sound::Playing)
+        ufoSnd_.play();
+}
+
+void SoundManager::stopUfo() {
+    ufoSnd_.stop();
+}
+
 void SoundManager::startMusic() {
     if (musicSnd_.getStatus() != sf::Sound::Playing)
         musicSnd_.play();
@@ -176,8 +212,10 @@ void SoundManager::toggleMute() {
     muted_ = !muted_;
     if (muted_) {
         musicSnd_.pause();
+        ufoSnd_.pause();
     } else {
         musicSnd_.play();
+        // UFO ancak aktifse GameManager tarafından playUfo() ile başlatılır
     }
 }
 

@@ -32,6 +32,9 @@ private:
     bool checkBarrierCollision(const sf::FloatRect& bounds);
     void loadHighScore();
     void saveHighScore();
+    void initStars();
+    void updateStars(float dt);
+    void drawStars();
 
     sf::RenderWindow window;
     Player player;
@@ -40,6 +43,35 @@ private:
     std::vector<Enemy> enemies;
     std::vector<Barrier> barriers;
     std::vector<Explosion> explosions;
+
+    // UFO (Mothership) sistemi
+    struct Ufo {
+        float x = 0.f, y = 28.f;
+        bool  active = false;
+        int   direction = 1;   // +1 soldan sağa, -1 sağdan sola
+        float speed = 130.f;
+
+        sf::FloatRect getBounds() const {
+            return sf::FloatRect(x, y, 46.f, 20.f);
+        }
+        void draw(sf::RenderWindow& window) const {
+            if (!active) return;
+            // Gövde
+            sf::RectangleShape body(sf::Vector2f(46.f, 14.f));
+            body.setPosition(x, y + 6.f);
+            body.setFillColor(sf::Color(200, 30, 30));
+            window.draw(body);
+            // Kubbe
+            sf::RectangleShape dome(sf::Vector2f(22.f, 8.f));
+            dome.setPosition(x + 12.f, y);
+            dome.setFillColor(sf::Color(255, 80, 80));
+            window.draw(dome);
+        }
+    };
+    Ufo   ufo_;
+    float ufoSpawnTimer_    = 0.f;
+    float ufoSpawnInterval_ = 20.f;  // ilk çıkış 20 saniye sonra
+
     SoundManager sound_;
     float kamikazeTimer_    = 0.f;
     float kamikazeInterval_ = 8.f;  // her 8 saniyede bir kamikaze dalar
@@ -48,6 +80,18 @@ private:
     sf::Text menuTitleText, menuSubText, restartHintText;
     sf::Text pauseText, pauseHintText, soundStatusText;
     sf::Text highScoreText;  // menüde ve GameOver'da gösterilecek
+
+    // Menü animasyon zamanlayıcısı
+    float menuTimer_ = 0.f;
+
+    // Parallax yıldız arkaplan sistemi
+    struct Star {
+        float x, y, speed, size;
+        sf::Uint8 brightness;
+    };
+    static constexpr int STAR_LAYERS     = 3;
+    static constexpr int STARS_PER_LAYER = 40;
+    std::vector<Star> stars_;
     
     int score;
     int lives;

@@ -25,6 +25,8 @@ public:
     void playEnemyShoot();
     void playExplosion();
     void playPlayerHit();
+    void playUfo();
+    void stopUfo();
     void startMusic();
     void stopMusic();
     void toggleMute();
@@ -36,6 +38,7 @@ private:
     void buildEnemyShootBuffer();
     void buildExplosionBuffer();
     void buildPlayerHitBuffer();
+    void buildUfoBuffer();
     void buildMusicBuffer();
 
     // Her ses için ayrı buffer + sound çifti
@@ -43,12 +46,14 @@ private:
     sf::SoundBuffer enemyShootBuf_;
     sf::SoundBuffer explosionBuf_;
     sf::SoundBuffer playerHitBuf_;
+    sf::SoundBuffer ufoBuf_;
     sf::SoundBuffer musicBuf_;
 
     sf::Sound shootSnd_;
     sf::Sound enemyShootSnd_;
     sf::Sound explosionSnd_;
     sf::Sound playerHitSnd_;
+    sf::Sound ufoSnd_;
     sf::Sound musicSnd_;          // döngülü arkaplan müziği
     bool muted_ = false;           // ses kapalı mı?
 
