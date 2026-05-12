@@ -27,6 +27,8 @@ public:
     void playPlayerHit();
     void startMusic();
     void stopMusic();
+    void toggleMute();
+    bool isMuted() const;
 
 private:
     // Ses üretim yardımcıları
@@ -48,6 +50,7 @@ private:
     sf::Sound explosionSnd_;
     sf::Sound playerHitSnd_;
     sf::Sound musicSnd_;          // döngülü arkaplan müziği
+    bool muted_ = false;           // ses kapalı mı?
 
     // Sinyal üretim yardımcısı — PCM örneklerini doldurur
     static void sineWave(std::vector<sf::Int16>& samples,

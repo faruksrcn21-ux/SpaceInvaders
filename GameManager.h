@@ -43,12 +43,13 @@ private:
     sf::Font font;
     sf::Text scoreText, livesText, levelText, gameOverText;
     sf::Text menuTitleText, menuSubText, winText, winSubText, restartHintText;
+    sf::Text pauseText, pauseHintText, soundStatusText;
     
     int score;
     int lives;
     int level;
 
-    enum class State { Menu, Playing, GameOver, Win } gameState;
+    enum class State { Menu, Playing, Paused, GameOver, Win } gameState;
 
     float swarmSpeed;
     int   swarmDirection;

@@ -142,22 +142,23 @@ SoundManager::SoundManager() {
 // ── Public API ────────────────────────────────────────────────────────────
 
 void SoundManager::playShoot() {
+    if (muted_) return;
     shootSnd_.play();
 }
 
 void SoundManager::playEnemyShoot() {
+    if (muted_) return;
     enemyShootSnd_.play();
 }
 
 void SoundManager::playExplosion() {
-    // Patlama sesi aynı anda 2+ kez çalabilir;
-    // sf::Sound tek kanal — bir öncekini durdurur.
-    // Gelişmiş çözüm için Sound pool gerekir (şimdilik yeterli).
+    if (muted_) return;
     explosionSnd_.stop();
     explosionSnd_.play();
 }
 
 void SoundManager::playPlayerHit() {
+    if (muted_) return;
     playerHitSnd_.stop();
     playerHitSnd_.play();
 }
@@ -169,4 +170,17 @@ void SoundManager::startMusic() {
 
 void SoundManager::stopMusic() {
     musicSnd_.stop();
+}
+
+void SoundManager::toggleMute() {
+    muted_ = !muted_;
+    if (muted_) {
+        musicSnd_.pause();
+    } else {
+        musicSnd_.play();
+    }
+}
+
+bool SoundManager::isMuted() const {
+    return muted_;
 }

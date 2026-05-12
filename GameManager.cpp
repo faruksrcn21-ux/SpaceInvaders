@@ -102,6 +102,29 @@ GameManager::GameManager()
   centreX(restartHintText, WINDOW_WIDTH);
   restartHintText.setPosition(restartHintText.getPosition().x, 400.f);
 
+  // Pause ekranı metinleri
+  pauseText.setFont(font);
+  pauseText.setCharacterSize(64);
+  pauseText.setFillColor(sf::Color::Yellow);
+  pauseText.setString("DURAKLATILDI");
+  centreX(pauseText, WINDOW_WIDTH);
+  pauseText.setPosition(pauseText.getPosition().x, 200.f);
+
+  pauseHintText.setFont(font);
+  pauseHintText.setCharacterSize(22);
+  pauseHintText.setFillColor(sf::Color(180, 180, 180));
+  pauseHintText.setString("P: Devam et     M: Ses Ac/Kapat     ESC: Cikis");
+  centreX(pauseHintText, WINDOW_WIDTH);
+  pauseHintText.setPosition(pauseHintText.getPosition().x, 320.f);
+
+  // Ses durumu göstergesi (menü ve pause ekranında)
+  soundStatusText.setFont(font);
+  soundStatusText.setCharacterSize(18);
+  soundStatusText.setFillColor(sf::Color(120, 220, 120));
+  soundStatusText.setString("Ses: ACIK  (M ile degistir)");
+  centreX(soundStatusText, WINDOW_WIDTH);
+  soundStatusText.setPosition(soundStatusText.getPosition().x, 550.f);
+
   // Bariyerler
   barriers.push_back(Barrier(100.f, BARRIER_Y));
   barriers.push_back(Barrier(350.f, BARRIER_Y));
@@ -250,8 +273,29 @@ void GameManager::processEvents() {
       if (event.key.code == sf::Keyboard::Escape)
         window.close();
 
-      // durum geçişleri
-      // Menu  → Enter → Playing (resetGame ile)
+      // M tuşu: Ses açma/kapama (her durumda çalışır)
+      if (event.key.code == sf::Keyboard::M) {
+        sound_.toggleMute();
+        if (sound_.isMuted()) {
+          soundStatusText.setFillColor(sf::Color(220, 120, 120));
+          soundStatusText.setString("Ses: KAPALI  (M ile degistir)");
+        } else {
+          soundStatusText.setFillColor(sf::Color(120, 220, 120));
+          soundStatusText.setString("Ses: ACIK  (M ile degistir)");
+        }
+        centreX(soundStatusText, WINDOW_WIDTH);
+      }
+
+      // P tuşu: Oyunu duraklat / devam ettir
+      if (event.key.code == sf::Keyboard::P) {
+        if (gameState == State::Playing)
+          gameState = State::Paused;
+        else if (gameState == State::Paused)
+          gameState = State::Playing;
+      }
+
+      // Durum geçişleri
+      // Menu     → Enter → Playing (resetGame ile)
       // GameOver → Enter → Playing
       // Win      → Enter → Playing
       if (event.key.code == sf::Keyboard::Enter) {
@@ -556,6 +600,9 @@ void GameManager::render() {
     enterHint.setPosition(enterHint.getPosition().x, 470.f);
     window.draw(enterHint);
 
+    // Ses durumu
+    window.draw(soundStatusText);
+
   } else if (gameState == State::Playing) {
     for (auto &enemy : enemies)
       enemy.draw(window);
@@ -591,6 +638,34 @@ void GameManager::render() {
     window.draw(winText);
     window.draw(winSubText);
     window.draw(restartHintText);
+
+  } else if (gameState == State::Paused) {
+    // Pause ekranında oyun sahnesini de çiz (donmuş halde)
+    for (auto &enemy : enemies)
+      enemy.draw(window);
+    for (auto &bullet : bullets)
+      bullet.draw(window);
+    for (auto &eBullet : enemyBullets)
+      eBullet.draw(window);
+    for (auto &barrier : barriers)
+      barrier.draw(window);
+    if (playerVisible)
+      player.draw(window);
+    for (auto &exp : explosions)
+      exp.draw(window);
+    window.draw(scoreText);
+    window.draw(livesText);
+    window.draw(levelText);
+
+    // Yarı saydam karartma overlay
+    sf::RectangleShape overlay(sf::Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
+    overlay.setFillColor(sf::Color(0, 0, 0, 150));
+    window.draw(overlay);
+
+    // Pause metinleri
+    window.draw(pauseText);
+    window.draw(pauseHintText);
+    window.draw(soundStatusText);
   }
 
   window.display();
