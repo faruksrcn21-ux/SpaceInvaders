@@ -2,6 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <string>
+#include <fstream>
 #include "Player.h"
 #include "Enemy.h"
 #include "Barrier.h"
@@ -29,6 +30,8 @@ private:
     // Helper fonksiyonlar
     void playerHit(bool isKamikaze = false);
     bool checkBarrierCollision(const sf::FloatRect& bounds);
+    void loadHighScore();
+    void saveHighScore();
 
     sf::RenderWindow window;
     Player player;
@@ -42,14 +45,16 @@ private:
     float kamikazeInterval_ = 8.f;  // her 8 saniyede bir kamikaze dalar
     sf::Font font;
     sf::Text scoreText, livesText, levelText, gameOverText;
-    sf::Text menuTitleText, menuSubText, winText, winSubText, restartHintText;
+    sf::Text menuTitleText, menuSubText, restartHintText;
     sf::Text pauseText, pauseHintText, soundStatusText;
+    sf::Text highScoreText;  // menüde ve GameOver'da gösterilecek
     
     int score;
     int lives;
     int level;
+    int highScore = 0;
 
-    enum class State { Menu, Playing, Paused, GameOver, Win } gameState;
+    enum class State { Menu, Playing, Paused, GameOver } gameState;
 
     float swarmSpeed;
     int   swarmDirection;

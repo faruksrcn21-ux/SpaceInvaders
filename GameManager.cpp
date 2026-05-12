@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
-
+#include <fstream>
 
 // Yardımcı: metni yatayda ortala
 static void centreX(sf::Text &t, float windowWidth) {
@@ -78,22 +78,6 @@ GameManager::GameManager()
   centreX(menuSubText, WINDOW_WIDTH);
   menuSubText.setPosition(menuSubText.getPosition().x, 290.f);
 
-  // Kazanma metni
-  winText.setFont(font);
-  winText.setCharacterSize(72);
-  winText.setFillColor(sf::Color::Green);
-  winText.setString("KAZANDINIZ!");
-  centreX(winText, WINDOW_WIDTH);
-  winText.setPosition(winText.getPosition().x, 200.f);
-
-  winSubText.setFont(font);
-  winSubText.setCharacterSize(28);
-  winSubText.setFillColor(sf::Color::White);
-  // İçerik resetGame'den sonra güncellenecek
-  winSubText.setString("");
-  centreX(winSubText, WINDOW_WIDTH);
-  winSubText.setPosition(winSubText.getPosition().x, 300.f);
-
   // Ortak "yeniden başlat" ipucu
   restartHintText.setFont(font);
   restartHintText.setCharacterSize(24);
@@ -124,6 +108,15 @@ GameManager::GameManager()
   soundStatusText.setString("Ses: ACIK  (M ile degistir)");
   centreX(soundStatusText, WINDOW_WIDTH);
   soundStatusText.setPosition(soundStatusText.getPosition().x, 550.f);
+
+  // High Score metni
+  highScoreText.setFont(font);
+  highScoreText.setCharacterSize(22);
+  highScoreText.setFillColor(sf::Color::Yellow);
+  loadHighScore();
+  highScoreText.setString("En Yuksek Skor: " + std::to_string(highScore));
+  centreX(highScoreText, WINDOW_WIDTH);
+  highScoreText.setPosition(highScoreText.getPosition().x, 240.f);
 
   // Bariyerler
   barriers.push_back(Barrier(100.f, BARRIER_Y));
@@ -232,10 +225,17 @@ void GameManager::resetGame() {
   gameState = State::Playing;
 }
 
-// initLevel — düşmanları oluştur
+// initLevel — düşmanları oluştur (seviyeye göre zorluk artar)
 void GameManager::initLevel() {
   enemies.clear();
-  for (int i = 0; i < 5; i++) { // 4 → 5 sıra
+
+  // her seviyede düşmanlar daha aşağıdan başlar
+  float startY = 50.f + (level - 1) * 15.f;
+  // Güvenlik sınırı: çok aşağı inmesin
+  if (startY > 200.f)
+    startY = 200.f;
+
+  for (int i = 0; i < 5; i++) {
     EnemyType type;
     if (i == 0)
       type = EnemyType::A; // üst sıra: UFO
@@ -245,7 +245,7 @@ void GameManager::initLevel() {
       type = EnemyType::C; // alt 2 sıra: böcek
 
     for (int j = 0; j < 8; j++)
-      enemies.push_back(Enemy(50.f + j * 60.f, 50.f + i * 50.f, type));
+      enemies.push_back(Enemy(50.f + j * 60.f, startY + i * 50.f, type));
   }
 }
 
@@ -297,10 +297,8 @@ void GameManager::processEvents() {
       // Durum geçişleri
       // Menu     → Enter → Playing (resetGame ile)
       // GameOver → Enter → Playing
-      // Win      → Enter → Playing
       if (event.key.code == sf::Keyboard::Enter) {
-        if (gameState == State::Menu || gameState == State::GameOver ||
-            gameState == State::Win) {
+        if (gameState == State::Menu || gameState == State::GameOver) {
           resetGame();
         }
       }
@@ -538,15 +536,16 @@ void GameManager::checkGameState() {
     }
   }
 
-  // Bölüm sonu (Kazanma / Seviye atlama) kontrolü
+  // Bölüm sonu — Sürekli yeni dalga (sonsuz seviye)
   if (enemies.empty() && gameState == State::Playing) {
     level++;
     levelText.setString("Seviye: " + std::to_string(level));
-    swarmSpeed += 20.f;
+    swarmSpeed += 15.f;
     swarmMoveInterval = 0.8f;
     dropPending = false;
     swarmDirection = 1;
-    enemyShootInterval = std::max(0.3f, enemyShootInterval * 0.85f);
+    enemyShootInterval = std::max(0.25f, enemyShootInterval * 0.85f);
+    kamikazeInterval_ = std::max(2.5f, 8.f - level * 0.6f);
     bullets.clear();
     enemyBullets.clear();
 
@@ -555,14 +554,15 @@ void GameManager::checkGameState() {
     barriers.push_back(Barrier(350.f, BARRIER_Y));
     barriers.push_back(Barrier(600.f, BARRIER_Y));
 
-    if (level > 3) {
-      winSubText.setString("Skor: " + std::to_string(score) +
-                           "   Seviye: " + std::to_string(level - 1));
-      centreX(winSubText, WINDOW_WIDTH);
-      gameState = State::Win;
-    } else {
-      initLevel();
+    // High score güncelle
+    if (score > highScore) {
+      highScore = score;
+      highScoreText.setString("En Yuksek Skor: " + std::to_string(highScore));
+      centreX(highScoreText, WINDOW_WIDTH);
+      saveHighScore();
     }
+
+    initLevel();
   }
 }
 
@@ -603,6 +603,10 @@ void GameManager::render() {
     // Ses durumu
     window.draw(soundStatusText);
 
+    // High Score
+    highScoreText.setPosition(highScoreText.getPosition().x, 240.f);
+    window.draw(highScoreText);
+
   } else if (gameState == State::Playing) {
     for (auto &enemy : enemies)
       enemy.draw(window);
@@ -622,21 +626,30 @@ void GameManager::render() {
     window.draw(levelText);
 
   } else if (gameState == State::GameOver) {
+    // High score kontrolü
+    if (score > highScore) {
+      highScore = score;
+      highScoreText.setString("En Yuksek Skor: " + std::to_string(highScore));
+      centreX(highScoreText, WINDOW_WIDTH);
+      saveHighScore();
+    }
+
     window.draw(gameOverText);
-    // Skoru da göster
+
+    // Skor ve seviye bilgisi
     sf::Text finalScore;
     finalScore.setFont(font);
     finalScore.setCharacterSize(28);
     finalScore.setFillColor(sf::Color::White);
-    finalScore.setString("Skor: " + std::to_string(score));
+    finalScore.setString("Skor: " + std::to_string(score) +
+                         "     Seviye: " + std::to_string(level));
     centreX(finalScore, WINDOW_WIDTH);
-    finalScore.setPosition(finalScore.getPosition().x, 310.f);
+    finalScore.setPosition(finalScore.getPosition().x, 290.f);
     window.draw(finalScore);
-    window.draw(restartHintText);
 
-  } else if (gameState == State::Win) {
-    window.draw(winText);
-    window.draw(winSubText);
+    // High score
+    window.draw(highScoreText);
+    highScoreText.setPosition(highScoreText.getPosition().x, 340.f);
     window.draw(restartHintText);
 
   } else if (gameState == State::Paused) {
@@ -669,4 +682,22 @@ void GameManager::render() {
   }
 
   window.display();
+}
+
+void GameManager::loadHighScore() {
+  std::ifstream file("highscore.txt");
+  if (file.is_open()) {
+    file >> highScore;
+    file.close();
+  } else {
+    highScore = 0;
+  }
+}
+
+void GameManager::saveHighScore() {
+  std::ofstream file("highscore.txt");
+  if (file.is_open()) {
+    file << highScore;
+    file.close();
+  }
 }
