@@ -121,8 +121,12 @@ void GameManager::resetGame() {
 // initLevel — düşmanları oluştur
 void GameManager::initLevel() {
     enemies.clear();
-    for (int i = 0; i < 4; i++) {
-        EnemyType type = (i == 0) ? EnemyType::A : (i <= 2) ? EnemyType::B : EnemyType::C;
+    for (int i = 0; i < 5; i++) {  // 4 → 5 sıra
+        EnemyType type;
+        if      (i == 0) type = EnemyType::A;   // üst sıra: UFO
+        else if (i <= 2) type = EnemyType::B;   // orta 2 sıra: yengeç
+        else             type = EnemyType::C;   // alt 2 sıra: böcek
+
         for (int j = 0; j < 8; j++)
             enemies.push_back(Enemy(50.f + j * 60.f, 50.f + i * 50.f, type));
     }
@@ -250,7 +254,7 @@ void GameManager::update(float DeltaTime) {
             // kamikaze olan düşmanlar formasyon dışı
             else for (auto& e : enemies)
                 if (!e.isKamikaze()) e.move(step, 0.f);
-            float ratio = 1.f - (float)enemies.size() / 32.f;
+             float ratio = 1.f - (float)enemies.size() / 40.f; // 32→40 (5×8)
             swarmMoveInterval = 0.8f * (1.f - ratio * 0.75f);
             if (swarmMoveInterval < 0.05f) swarmMoveInterval = 0.05f;
         }
