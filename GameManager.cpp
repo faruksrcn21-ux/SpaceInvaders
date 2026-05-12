@@ -387,6 +387,10 @@ void GameManager::updateEntities(float DeltaTime) {
   swarmMoveTimer += DeltaTime;
   if (swarmMoveTimer >= swarmMoveInterval) {
     swarmMoveTimer = 0.f;
+    
+    // YENİ: Düşmanlar adım attığında "kalp atışı" sesini çal
+    sound_.playFleetStep();
+    
     if (dropPending) {
       for (auto &e : enemies)
         if (!e.isKamikaze())

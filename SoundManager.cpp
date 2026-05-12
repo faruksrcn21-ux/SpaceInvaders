@@ -106,6 +106,33 @@ void SoundManager::buildUfoBuffer() {
     ufoBuf_.loadFromSamples(s.data(), s.size(), 1, SAMPLE_RATE);
 }
 
+// 4 notalık klasik Space Invaders benzeri gerilim ritmi (Daha tok ve bas ağırlıklı)
+void SoundManager::buildFleetBuffers() {
+    float freqs[4] = { 75.f, 70.f, 65.f, 60.f }; 
+    float durationSec = 0.12f;
+    int count = static_cast<int>(SAMPLE_RATE * durationSec);
+    
+    for (int j = 0; j < 4; j++) {
+        std::vector<sf::Int16> s(count);
+        for (int i = 0; i < count; i++) {
+            float t = static_cast<float>(i) / SAMPLE_RATE;
+            
+            // Tok bir bas sesi için saf sinüs dalgası
+            float val = std::sin(2.f * PI * freqs[j] * t);
+            
+            // Eski atari/analog hissini vermek için hafif doygunluk (overdrive)
+            val = std::tanh(val * 1.5f);
+            
+            // "Güm" (kalp atışı) hissi yaratmak için percussive zarf (hızlıca sönümlenen)
+            float envelope = 1.0f - (t / durationSec);
+            envelope = envelope * envelope; // Daha hızlı sönümleme (üssel)
+            
+            s[i] = static_cast<sf::Int16>(val * envelope * 0.7f * 32767.f);
+        }
+        fleetBuf_[j].loadFromSamples(s.data(), s.size(), 1, SAMPLE_RATE);
+    }
+}
+
 // Retro arkaplan müziği: basit 8-bit tarzı arpej dizisi
 // 4 nota → döngülü tekrar (sf::Sound::setLoop kullanıyoruz)
 void SoundManager::buildMusicBuffer() {
@@ -140,6 +167,7 @@ SoundManager::SoundManager() {
     buildExplosionBuffer();
     buildPlayerHitBuffer();
     buildUfoBuffer();
+    buildFleetBuffers();
     buildMusicBuffer();
 
     // Soundları buffer'lara bağla
@@ -148,6 +176,10 @@ SoundManager::SoundManager() {
     explosionSnd_.setBuffer(explosionBuf_);
     playerHitSnd_.setBuffer(playerHitBuf_);
     ufoSnd_.setBuffer(ufoBuf_);
+    for(int i=0; i<4; i++) {
+        fleetSnd_[i].setBuffer(fleetBuf_[i]);
+        fleetSnd_[i].setVolume(90.f);
+    }
     musicSnd_.setBuffer(musicBuf_);
 
     // UFO döngülü çalar
@@ -197,6 +229,12 @@ void SoundManager::playUfo() {
 
 void SoundManager::stopUfo() {
     ufoSnd_.stop();
+}
+
+void SoundManager::playFleetStep() {
+    if (muted_) return;
+    fleetSnd_[fleetStep_].play();
+    fleetStep_ = (fleetStep_ + 1) % 4;
 }
 
 void SoundManager::startMusic() {

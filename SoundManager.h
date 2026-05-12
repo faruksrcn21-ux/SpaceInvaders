@@ -27,6 +27,7 @@ public:
     void playPlayerHit();
     void playUfo();
     void stopUfo();
+    void playFleetStep();
     void startMusic();
     void stopMusic();
     void toggleMute();
@@ -39,6 +40,7 @@ private:
     void buildExplosionBuffer();
     void buildPlayerHitBuffer();
     void buildUfoBuffer();
+    void buildFleetBuffers();
     void buildMusicBuffer();
 
     // Her ses için ayrı buffer + sound çifti
@@ -47,6 +49,7 @@ private:
     sf::SoundBuffer explosionBuf_;
     sf::SoundBuffer playerHitBuf_;
     sf::SoundBuffer ufoBuf_;
+    sf::SoundBuffer fleetBuf_[4];
     sf::SoundBuffer musicBuf_;
 
     sf::Sound shootSnd_;
@@ -54,6 +57,8 @@ private:
     sf::Sound explosionSnd_;
     sf::Sound playerHitSnd_;
     sf::Sound ufoSnd_;
+    sf::Sound fleetSnd_[4];
+    int fleetStep_ = 0;
     sf::Sound musicSnd_;          // döngülü arkaplan müziği
     bool muted_ = false;           // ses kapalı mı?
 
