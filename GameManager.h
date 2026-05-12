@@ -93,6 +93,36 @@ private:
     static constexpr int STARS_PER_LAYER = 40;
     std::vector<Star> stars_;
     
+    // Yüzen Puan Yazıları (Floating Text)
+    struct FloatingText {
+        sf::Text text;
+        float x, y;
+        float lifeTimer;
+        float maxLife;
+        float speed;
+        
+        void update(float dt) {
+            y -= speed * dt;
+            lifeTimer -= dt;
+            if (lifeTimer < 0.f) lifeTimer = 0.f;
+            sf::Color c = text.getFillColor();
+            c.a = static_cast<sf::Uint8>(255.f * (lifeTimer / maxLife));
+            text.setFillColor(c);
+            text.setPosition(x, y);
+        }
+        void draw(sf::RenderWindow& w) const {
+            if (lifeTimer > 0.f) w.draw(text);
+        }
+    };
+    std::vector<FloatingText> floatingTexts_;
+
+    // Ekran Sarsıntısı (Screen Shake)
+    float shakeTimer_ = 0.f;
+    float shakeMagnitude_ = 0.f;
+    void addScreenShake(float duration, float magnitude) {
+        shakeTimer_ = duration;
+        shakeMagnitude_ = magnitude;
+    }
     int score;
     int lives;
     int level;

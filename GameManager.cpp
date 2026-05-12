@@ -162,6 +162,7 @@ void GameManager::playerHit(bool isKamikaze) {
                             sf::Color(255, 255, 180), 8);
   }
   sound_.playPlayerHit();
+  addScreenShake(0.5f, 15.f); // Oyuncu vurulunca şiddetli sarsıntı
 
   if (lives <= 0) {
     gameState = State::GameOver;
@@ -215,6 +216,8 @@ void GameManager::resetGame() {
   bullets.clear();
   enemyBullets.clear();
   explosions.clear(); // Patlama particle sistemi
+  floatingTexts_.clear();
+  shakeTimer_ = 0.f;
   kamikazeTimer_ = 0.f;
   kamikazeInterval_ = 8.f;
 
@@ -320,6 +323,13 @@ void GameManager::update(float DeltaTime) {
   updateStars(DeltaTime);
   menuTimer_ += DeltaTime;
 
+  // Ekran sarsıntısını güncelle
+  if (shakeTimer_ > 0.f) {
+    shakeTimer_ -= DeltaTime;
+    if (shakeTimer_ < 0.f)
+      shakeTimer_ = 0.f;
+  }
+
   // Menü ve bitiş ekranlarında oyun mantığı çalışmaz
   if (gameState != State::Playing)
     return;
@@ -360,6 +370,16 @@ void GameManager::updateEntities(float DeltaTime) {
   for (auto &exp : explosions)
     exp.update(DeltaTime);
 
+  // Yüzen yazıları güncelle
+  for (auto &ft : floatingTexts_)
+    ft.update(DeltaTime);
+  floatingTexts_.erase(std::remove_if(floatingTexts_.begin(),
+                                      floatingTexts_.end(),
+                                      [](const FloatingText &ft) {
+                                        return ft.lifeTimer <= 0.f;
+                                      }),
+                       floatingTexts_.end());
+
   // UFO (Mothership) Mantığı
   if (!ufo_.active) {
     ufoSpawnTimer_ += DeltaTime;
@@ -387,10 +407,10 @@ void GameManager::updateEntities(float DeltaTime) {
   swarmMoveTimer += DeltaTime;
   if (swarmMoveTimer >= swarmMoveInterval) {
     swarmMoveTimer = 0.f;
-    
+
     // YENİ: Düşmanlar adım attığında "kalp atışı" sesini çal
     sound_.playFleetStep();
-    
+
     if (dropPending) {
       for (auto &e : enemies)
         if (!e.isKamikaze())
@@ -481,9 +501,23 @@ void GameManager::checkCollisions() {
       score += pts;
       scoreText.setString("Skor: " + std::to_string(score));
 
+      // Yüzen puan yazısı
+      FloatingText ft;
+      ft.text.setFont(font);
+      ft.text.setCharacterSize(20);
+      ft.text.setFillColor(sf::Color::Cyan);
+      ft.text.setString("+" + std::to_string(pts));
+      ft.x = ufo_.x + 10.f;
+      ft.y = ufo_.y - 10.f;
+      ft.lifeTimer = 1.2f;
+      ft.maxLife = 1.2f;
+      ft.speed = 40.f;
+      floatingTexts_.push_back(ft);
+
       explosions.emplace_back(ufo_.x + 23.f, ufo_.y + 10.f,
                               sf::Color(255, 60, 60), 18);
       sound_.playExplosion();
+      addScreenShake(0.3f, 8.f); // UFO patlayınca hafif sarsıntı
       bulletAlive[i] = false;
       continue;
     }
@@ -493,8 +527,23 @@ void GameManager::checkCollisions() {
         continue;
       if (bullets[i].getBounds().intersects(enemy.getBounds())) {
         enemy.takeDamage(1);
-        score += enemy.getScore();
+        int pts = enemy.getScore();
+        score += pts;
         scoreText.setString("Skor: " + std::to_string(score));
+
+        // Yüzen puan yazısı
+        FloatingText ft;
+        ft.text.setFont(font);
+        ft.text.setCharacterSize(14);
+        ft.text.setFillColor(sf::Color::Yellow);
+        ft.text.setString("+" + std::to_string(pts));
+        ft.x = enemy.getX() + 10.f;
+        ft.y = enemy.getY() - 10.f;
+        ft.lifeTimer = 0.8f;
+        ft.maxLife = 0.8f;
+        ft.speed = 30.f;
+        floatingTexts_.push_back(ft);
+
         sf::Color expColor;
         switch (enemy.getType()) {
         case EnemyType::A:
@@ -627,7 +676,19 @@ void GameManager::checkGameState() {
 
 void GameManager::render() {
   window.clear(sf::Color(5, 5, 15)); // koyu lacivert arka plan
-  drawStars();                       // yıldızlar her ekranda çizilir
+
+  // Ekran Sarsıntısı (Screen Shake) Uygulama
+  sf::View view = window.getDefaultView();
+  if (shakeTimer_ > 0.f) {
+    float offsetX =
+        ((rand() % 100) / 50.f - 1.f) * shakeMagnitude_ * (shakeTimer_ / 0.5f);
+    float offsetY =
+        ((rand() % 100) / 50.f - 1.f) * shakeMagnitude_ * (shakeTimer_ / 0.5f);
+    view.move(offsetX, offsetY);
+  }
+  window.setView(view);
+
+  drawStars(); // yıldızlar her ekranda çizilir
 
   if (gameState == State::Menu) {
     // Animasyonlu başlık
@@ -742,6 +803,10 @@ void GameManager::render() {
       exp.draw(window);
     ufo_.draw(window); // UFO en üste çizilir
 
+    // Yüzen puan yazıları
+    for (auto &ft : floatingTexts_)
+      ft.draw(window);
+
     window.draw(scoreText);
     window.draw(livesText);
     window.draw(levelText);
@@ -803,6 +868,8 @@ void GameManager::render() {
     window.draw(soundStatusText);
   }
 
+  // View'ı normale döndür (sarsıntı etkisinin UI'yi sürekli kaydırmaması için)
+  window.setView(window.getDefaultView());
   window.display();
 }
 
