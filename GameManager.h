@@ -21,6 +21,15 @@ private:
     void initLevel();
     void resetGame();
 
+    // Alt güncellemeler (Step 3)
+    void updateEntities(float deltaTime);
+    void checkCollisions();
+    void checkGameState();
+
+    // Helper fonksiyonlar
+    void playerHit(bool isKamikaze = false);
+    bool checkBarrierCollision(const sf::FloatRect& bounds);
+
     sf::RenderWindow window;
     Player player;
     std::vector<Bullet> bullets;
@@ -51,6 +60,14 @@ private:
     bool  dropPending;      // true -> bir sonraki adımda aşağı in + yön değiştir
     float swarmMoveTimer;   // adım zamanlayıcısı
     float swarmMoveInterval;// adımlar arası süre (saniye); düşman azaldıkça kısalır
+
+    // oyun sabitleri (sihirli sayılar yerine)
+    static constexpr float WINDOW_WIDTH       = 800.f;
+    static constexpr float WINDOW_HEIGHT      = 600.f;
+    static constexpr float BARRIER_Y          = 450.f;
+    static constexpr float RIGHT_BOUND        = 760.f;
+    static constexpr float LEFT_BOUND         = 0.f;
+    static constexpr float ENEMY_BOTTOM_LIMIT = 420.f;
 
     // oyuncu dokunulmazlık
     float invincibleTimer;          // > 0 iken oyuncu hasar almaz
