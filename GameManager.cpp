@@ -512,6 +512,7 @@ void GameManager::checkCollisions() {
       ft.lifeTimer = 1.2f;
       ft.maxLife = 1.2f;
       ft.speed = 40.f;
+      ft.text.setPosition(ft.x, ft.y); // FIX 15: ilk kare (0,0)'da görünmesin
       floatingTexts_.push_back(ft);
 
       explosions.emplace_back(ufo_.x + 23.f, ufo_.y + 10.f,
@@ -542,6 +543,7 @@ void GameManager::checkCollisions() {
         ft.lifeTimer = 0.8f;
         ft.maxLife = 0.8f;
         ft.speed = 30.f;
+        ft.text.setPosition(ft.x, ft.y); //ilk kare (0,0) değil, düşmanın üstünde başlasın
         floatingTexts_.push_back(ft);
 
         sf::Color expColor;
@@ -598,7 +600,6 @@ void GameManager::checkCollisions() {
     bool hit = false;
     if (checkBarrierCollision(enemyBullets[i].getBounds())) {
       eBulletAlive[i] = false;
-      hit = true;
     }
   }
   {
@@ -834,8 +835,8 @@ void GameManager::render() {
     window.draw(finalScore);
 
     // High score
-    window.draw(highScoreText);
     highScoreText.setPosition(highScoreText.getPosition().x, 340.f);
+    window.draw(highScoreText);
     window.draw(restartHintText);
 
   } else if (gameState == State::Paused) {
