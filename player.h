@@ -9,6 +9,7 @@ public:
     void update(float deltaTime, std::vector<Bullet>& bullets);
     void draw(sf::RenderWindow& window);
     sf::FloatRect getBounds() const;
+    sf::Vector2f  getPosition() const { return pos; }
 
 private:
     // tek dikdörtgen yerine çoklu shape ile gemi

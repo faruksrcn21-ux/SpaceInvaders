@@ -185,6 +185,12 @@ bool GameManager::checkBarrierCollision(const sf::FloatRect &bounds) {
         continue;
       if (bounds.intersects(blocks[k].getGlobalBounds())) {
         hpList[k]--;
+
+        // Siper parçacıkları (Red/Orange sparks matching the red barrier)
+        float bx = blocks[k].getPosition().x + 2.5f;
+        float by = blocks[k].getPosition().y + 2.5f;
+        explosions.emplace_back(bx, by, sf::Color(220, 60, 0), 3);
+
         if (hpList[k] <= 0) {
           blocks[k].setSize(sf::Vector2f(0.f, 0.f)); // görünmez
         }
@@ -220,6 +226,7 @@ void GameManager::resetGame() {
   enemyBullets.clear();
   explosions.clear(); // Patlama particle sistemi
   floatingTexts_.clear();
+  thrustParticles_.clear(); // İtki parçacıklarını temizle
   shakeTimer_ = 0.f;
   kamikazeTimer_ = 0.f;
   kamikazeInterval_ = 8.f;
@@ -359,6 +366,7 @@ void GameManager::update(float DeltaTime) {
       enemyBullets.clear();
       explosions.clear();
       floatingTexts_.clear();
+      thrustParticles_.clear(); // İtki parçacıklarını temizle
       barriers.clear();
       barriers.push_back(Barrier(100.f, BARRIER_Y));
       barriers.push_back(Barrier(350.f, BARRIER_Y));
@@ -387,6 +395,43 @@ void GameManager::updateEntities(float DeltaTime) {
   if ((int)bullets.size() > bulletsBefore)
     sound_.playShoot(); // Yeni mermi atıldıysa ses çal
 
+  // Oyuncu Motor Alevi Efekti (Thrust Particles)
+  if (gameState == State::Playing) {
+    bool left = sf::Keyboard::isKeyPressed(sf::Keyboard::Left);
+    bool right = sf::Keyboard::isKeyPressed(sf::Keyboard::Right);
+
+    if (left || right) {
+      sf::Vector2f playerPos = player.getPosition();
+      for (int side = 0; side < 2; side++) {
+        float ex = (side == 0) ? (playerPos.x - 11.5f) : (playerPos.x + 11.5f);
+        float ey = playerPos.y + 8.f;
+
+        ThrustParticle p;
+        float sz = 2.f + static_cast<float>(rand() % 3);
+        p.shape.setSize(sf::Vector2f(sz, sz));
+        p.shape.setOrigin(sz / 2.f, sz / 2.f);
+        p.shape.setPosition(ex, ey);
+
+        int colType = rand() % 3;
+        if (colType == 0)
+          p.shape.setFillColor(sf::Color(255, 100, 0));
+        else if (colType == 1)
+          p.shape.setFillColor(sf::Color(255, 200, 0));
+        else
+          p.shape.setFillColor(sf::Color(255, 50, 0));
+
+        float vx = -20.f + static_cast<float>(rand() % 41);
+        float vy = 80.f + static_cast<float>(rand() % 61);
+        p.velocity = sf::Vector2f(vx, vy);
+
+        p.maxLifetime = 0.15f + static_cast<float>(rand() % 16) / 100.f;
+        p.lifetime = p.maxLifetime;
+
+        thrustParticles_.push_back(p);
+      }
+    }
+  }
+
   // Dokunulmazlık (Invincibility) süresi ve yanıp sönme efekti
   if (invincibleTimer > 0.f) {
     invincibleTimer -= DeltaTime;
@@ -408,6 +453,21 @@ void GameManager::updateEntities(float DeltaTime) {
     eb.update(DeltaTime);
   for (auto &exp : explosions)
     exp.update(DeltaTime);
+
+  // İtki parçacıklarını güncelle ve temizle
+  for (auto &p : thrustParticles_) {
+    p.lifetime -= DeltaTime;
+    p.shape.move(p.velocity * DeltaTime);
+    p.velocity.y *= (1.f - 1.f * DeltaTime);
+    float ratio = std::max(0.f, p.lifetime / p.maxLifetime);
+    sf::Color c = p.shape.getFillColor();
+    c.a = static_cast<sf::Uint8>(255.f * ratio);
+    p.shape.setFillColor(c);
+  }
+  thrustParticles_.erase(
+      std::remove_if(thrustParticles_.begin(), thrustParticles_.end(),
+                     [](const ThrustParticle &p) { return p.lifetime <= 0.f; }),
+      thrustParticles_.end());
 
   // Yüzen yazıları güncelle
   for (auto &ft : floatingTexts_)
@@ -679,6 +739,12 @@ void GameManager::checkCollisions() {
         if (hpList[k] > 0 && eb.intersects(blocks[k].getGlobalBounds())) {
           hpList[k] = 0; // Anında yok et
           blocks[k].setSize(sf::Vector2f(0.f, 0.f));
+
+          float bx = blocks[k].getPosition().x + 2.5f;
+          float by = blocks[k].getPosition().y + 2.5f;
+          explosions.emplace_back(bx, by, sf::Color(220, 60, 0),
+                                  2); // Kırmızı siper parçacığı
+
           collidedWithBarrier = true;
         }
       }
@@ -864,6 +930,12 @@ void GameManager::render() {
     if (!barriers.empty())
       for (auto &barrier : barriers)
         barrier.draw(window);
+
+    // Motor itki parçacıklarını çiz
+    for (const auto &p : thrustParticles_) {
+      window.draw(p.shape);
+    }
+
     if (playerVisible)
       player.draw(window);
     if (!explosions.empty())
@@ -972,6 +1044,12 @@ void GameManager::render() {
       eBullet.draw(window);
     for (auto &barrier : barriers)
       barrier.draw(window);
+
+    // Motor itki parçacıklarını çiz
+    for (const auto &p : thrustParticles_) {
+      window.draw(p.shape);
+    }
+
     if (playerVisible)
       player.draw(window);
     for (auto &exp : explosions)
