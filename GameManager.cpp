@@ -86,9 +86,9 @@ GameManager::GameManager()
   restartHintText.setFont(font);
   restartHintText.setCharacterSize(24);
   restartHintText.setFillColor(sf::Color(180, 180, 180));
-  restartHintText.setString("ENTER: Tekrar oyna     ESC: Cikis");
+  restartHintText.setString("ENTER veya R: Tekrar oyna     ESC: Cikis");
   centreX(restartHintText, WINDOW_WIDTH);
-  restartHintText.setPosition(restartHintText.getPosition().x, 400.f);
+  restartHintText.setPosition(restartHintText.getPosition().x, 430.f);
 
   // Pause ekranı metinleri
   pauseText.setFont(font);
@@ -100,8 +100,8 @@ GameManager::GameManager()
 
   pauseHintText.setFont(font);
   pauseHintText.setCharacterSize(22);
-  pauseHintText.setFillColor(sf::Color(180, 180, 180));
-  pauseHintText.setString("P: Devam et     M: Ses Ac/Kapat     ESC: Cikis");
+  pauseHintText.setFillColor(sf::Color(200, 200, 200));
+  pauseHintText.setString("P: Devam et     R: Reset     ESC: Cikis");
   centreX(pauseHintText, WINDOW_WIDTH);
   pauseHintText.setPosition(pauseHintText.getPosition().x, 320.f);
 
@@ -223,8 +223,8 @@ void GameManager::resetGame() {
   shakeTimer_ = 0.f;
   kamikazeTimer_ = 0.f;
   kamikazeInterval_ = 8.f;
-  levelUpTimer_ = 0.f;   // LevelUp sayacı
-  newRecord_    = false; // Yeni Rekor kutlaması
+  levelUpTimer_ = 0.f; // LevelUp sayacı
+  newRecord_ = false;  // Yeni Rekor kutlaması
 
   // UFO sıfırla
   ufo_.active = false;
@@ -313,10 +313,17 @@ void GameManager::processEvents() {
       // Durum geçişleri
       // Menu     → Enter → Playing (resetGame ile)
       // GameOver → Enter → Playing
-      if (event.key.code == sf::Keyboard::Enter) {
+      if (event.key.code == sf::Keyboard::Enter ||
+          event.key.code == sf::Keyboard::R) {
         if (gameState == State::Menu || gameState == State::GameOver) {
           resetGame();
         }
+      }
+
+      // Oyun esnasında veya Pause'da R tuşu ile direkt reset
+      if (event.key.code == sf::Keyboard::R &&
+          (gameState == State::Playing || gameState == State::Paused)) {
+        resetGame();
       }
     }
   }
@@ -340,13 +347,13 @@ void GameManager::update(float DeltaTime) {
     levelUpTimer_ -= DeltaTime;
     if (levelUpTimer_ <= 0.f) {
       // Yeni dalgayı hazırla
-      swarmSpeed = std::min(swarmSpeed + 10.f, 250.f);  // Sınırlı artış
-      swarmMoveInterval  = std::max(0.5f, swarmMoveInterval * 0.95f);
-      dropPending        = false;
-      swarmDirection     = 1;
+      swarmSpeed = std::min(swarmSpeed + 10.f, 250.f); // Sınırlı artış
+      swarmMoveInterval = std::max(0.5f, swarmMoveInterval * 0.95f);
+      dropPending = false;
+      swarmDirection = 1;
       enemyShootInterval = std::max(0.2f, enemyShootInterval * 0.9f);
-      kamikazeInterval_  = std::max(3.f, 8.f - level * 0.4f);
-      
+      kamikazeInterval_ = std::max(3.f, 8.f - level * 0.4f);
+
       // Vektörleri güvenli bir şekilde temizle
       bullets.clear();
       enemyBullets.clear();
@@ -654,6 +661,38 @@ void GameManager::checkCollisions() {
     if (e.hasReachedTarget())
       e.takeDamage(1);
   }
+
+  // Düşman Gemileri vs Bariyerler (Kemirme Efekti)
+  for (auto &enemy : enemies) {
+    if (!enemy.isAlive())
+      continue;
+    // Optimizasyon: Düşman siper hizasında değilse kontrol etme
+    if (enemy.getY() + 30.f < BARRIER_Y)
+      continue;
+
+    sf::FloatRect eb = enemy.getBounds();
+    bool collidedWithBarrier = false;
+    for (auto &barrier : barriers) {
+      auto &blocks = barrier.getBlocks();
+      auto &hpList = barrier.getBlockHp();
+      for (int k = 0; k < (int)blocks.size(); k++) {
+        if (hpList[k] > 0 && eb.intersects(blocks[k].getGlobalBounds())) {
+          hpList[k] = 0; // Anında yok et
+          blocks[k].setSize(sf::Vector2f(0.f, 0.f));
+          collidedWithBarrier = true;
+        }
+      }
+    }
+
+    // Kamikaze sipere çarptıysa patlasın ve ölsün
+    if (collidedWithBarrier && enemy.isKamikaze()) {
+      enemy.takeDamage(1);
+      explosions.emplace_back(enemy.getX() + 20.f, enemy.getY() + 15.f,
+                              sf::Color(255, 100, 100), 10);
+      sound_.playExplosion();
+      addScreenShake(0.2f, 5.f);
+    }
+  }
 }
 
 void GameManager::checkGameState() {
@@ -693,7 +732,7 @@ void GameManager::checkGameState() {
 
     // Playing → LevelUp, 2sn sonra yeni dalga başlar
     levelUpTimer_ = LEVELUP_DURATION;
-    gameState     = State::LevelUp;
+    gameState = State::LevelUp;
   }
 }
 
@@ -868,22 +907,26 @@ void GameManager::render() {
     if (newRecord_) {
       sf::Text recText;
       recText.setFont(font);
-      recText.setCharacterSize(32);
+      recText.setCharacterSize(38);
       // Yanıp sönen sarı renk (menuTimer_ ile)
       float pulse = (std::sin(menuTimer_ * 6.f) + 1.f) / 2.f;
-      sf::Uint8 alpha = static_cast<sf::Uint8>(160 + 95 * pulse);
-      recText.setFillColor(sf::Color(255, 220, 0, alpha));
-      recText.setString("** YENi REKOR! **");
+      sf::Uint8 alpha = static_cast<sf::Uint8>(180 + 75 * pulse);
+      recText.setFillColor(sf::Color(255, 255, 0, alpha));
+      recText.setOutlineColor(sf::Color(255, 120, 0, alpha));
+      recText.setOutlineThickness(2.f);
+      recText.setString("!!! YENI REKOR !!!");
       centreX(recText, WINDOW_WIDTH);
-      recText.setPosition(recText.getPosition().x, 390.f);
+      recText.setPosition(recText.getPosition().x, 400.f);
       window.draw(recText);
     }
 
-    highScoreText.setPosition(highScoreText.getPosition().x, 340.f);
+    highScoreText.setPosition(highScoreText.getPosition().x, 350.f);
     window.draw(highScoreText);
+
+    restartHintText.setPosition(restartHintText.getPosition().x, 480.f);
     window.draw(restartHintText);
 
-  // Seviye geçiş ekranı
+    // Seviye geçiş ekranı
   } else if (gameState == State::LevelUp) {
     drawStars(); // yıldızlar arkada görünsün
 
@@ -904,7 +947,7 @@ void GameManager::render() {
     subText.setFont(font);
     subText.setCharacterSize(24);
     subText.setFillColor(sf::Color(200, 200, 200));
-    subText.setString("Dusmanlar hizlaniyor...");
+    subText.setString("Hazir Ol!");
     centreX(subText, WINDOW_WIDTH);
     subText.setPosition(subText.getPosition().x, 310.f);
     window.draw(subText);

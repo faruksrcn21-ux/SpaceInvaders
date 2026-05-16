@@ -8,20 +8,34 @@ static sf::Color hpColor(int hp) {
 }
 
 Barrier::Barrier(float startX, float startY) {
-    // 4 sıra x 6 sütun blok — her biri 15x15
-    // Üst 2 sıra biraz daha dar (kale dişi görünümü)
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 6; j++) {
-            // Kale dişi: üst köşe blokları atla
-            if (i == 0 && (j == 0 || j == 5)) continue;
+    const int ROWS = 10;
+    const int COLS = 13;
+    const float PIXEL_SIZE = 5.0f;
 
-            sf::RectangleShape block(sf::Vector2f(15.0f, 15.0f));
-            block.setFillColor(hpColor(3));
-            block.setOutlineColor(sf::Color(0, 255, 120));
-            block.setOutlineThickness(1.0f);
-            block.setPosition(startX + j * 15.0f, startY + i * 15.0f);
-            blocks.push_back(block);
-            blockHp.push_back(3);// Her blok için başlangıç HP = 3
+    // Klasik Space Invaders kalkan formu (13x10'luk piksel haritası)
+    const char* pattern[ROWS] = {
+        "    XXXXX    ",
+        "  XXXXXXXXX  ",
+        " XXXXXXXXXXX ",
+        "XXXXXXXXXXXXX",
+        "XXXXXXXXXXXXX",
+        "XXXXXXXXXXXXX",
+        "XXXXXXXXXXXXX",
+        "XXXXXXXXXXXXX",
+        "XXXX     XXXX",
+        "XXXX     XXXX"
+    };
+
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLS; j++) {
+            if (pattern[i][j] == 'X') {
+                sf::RectangleShape block(sf::Vector2f(PIXEL_SIZE, PIXEL_SIZE));
+                block.setFillColor(sf::Color(0, 220, 80)); // Klasik yeşil
+                block.setPosition(startX + j * PIXEL_SIZE, startY + i * PIXEL_SIZE);
+                
+                blocks.push_back(block);
+                blockHp.push_back(1); // Piksel bazlı: tek vuruşta yok olur
+            }
         }
     }
 }

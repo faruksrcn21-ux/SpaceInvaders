@@ -151,7 +151,7 @@ private:
     static constexpr float BARRIER_Y          = 450.f;
     static constexpr float RIGHT_BOUND        = 760.f;
     static constexpr float LEFT_BOUND         = 0.f;
-    static constexpr float ENEMY_BOTTOM_LIMIT = 420.f;
+    static constexpr float ENEMY_BOTTOM_LIMIT = 520.f;
 
     // oyuncu dokunulmazlık
     float invincibleTimer;          // > 0 iken oyuncu hasar almaz

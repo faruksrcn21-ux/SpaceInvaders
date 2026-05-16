@@ -108,8 +108,9 @@ void SoundManager::buildUfoBuffer() {
 
 // 4 notalık klasik Space Invaders benzeri gerilim ritmi (Daha tok ve bas ağırlıklı)
 void SoundManager::buildFleetBuffers() {
-    float freqs[4] = { 75.f, 70.f, 65.f, 60.f }; 
-    float durationSec = 0.12f;
+    // Biraz daha net duyulan ama tok frekanslar (80-95 Hz arası)
+    float freqs[4] = { 95.f, 90.f, 85.f, 80.f }; 
+    float durationSec = 0.14f; // Daha dolgun bir duyum için süre artırıldı
     int count = static_cast<int>(SAMPLE_RATE * durationSec);
     
     for (int j = 0; j < 4; j++) {
@@ -117,17 +118,24 @@ void SoundManager::buildFleetBuffers() {
         for (int i = 0; i < count; i++) {
             float t = static_cast<float>(i) / SAMPLE_RATE;
             
-            // Tok bir bas sesi için saf sinüs dalgası
-            float val = std::sin(2.f * PI * freqs[j] * t);
+            // Frekans kayması (pitch slide): Vuruş hissini artırmak için frekansı hafifçe düşürüyoruz
+            float f = freqs[j] * (1.0f - 0.2f * (t / durationSec));
             
-            // Eski atari/analog hissini vermek için hafif doygunluk (overdrive)
-            val = std::tanh(val * 1.5f);
+            float val = std::sin(2.f * PI * f * t);
             
-            // "Güm" (kalp atışı) hissi yaratmak için percussive zarf (hızlıca sönümlenen)
-            float envelope = 1.0f - (t / durationSec);
-            envelope = envelope * envelope; // Daha hızlı sönümleme (üssel)
+            // Yumuşatılmış doygunluk (sinüs tabanlı soft-clipping)
+            val = std::sin(val * 1.2f);
             
-            s[i] = static_cast<sf::Int16>(val * envelope * 0.7f * 32767.f);
+            // ADSR benzeri zarf (10ms atak, yumuşak sönümleme)
+            float envelope;
+            if (t < 0.01f) {
+                envelope = t / 0.01f; // Tıklama sesini engellemek için atak
+            } else {
+                envelope = 1.0f - ((t - 0.01f) / (durationSec - 0.01f));
+                envelope = std::pow(envelope, 1.5f); // Daha doğal sönümleme
+            }
+            
+            s[i] = static_cast<sf::Int16>(val * envelope * 0.45f * 32767.f); // Ses seviyesi dengelendi
         }
         fleetBuf_[j].loadFromSamples(s.data(), s.size(), 1, SAMPLE_RATE);
     }
