@@ -84,6 +84,10 @@ private:
     // Menü animasyon zamanlayıcısı
     float menuTimer_ = 0.f;
 
+    float levelUpTimer_ = 0.f;               // 2sn gösterim sayacı
+    static constexpr float LEVELUP_DURATION = 2.0f;
+    bool  newRecord_ = false;                // GameOver'da "Yeni Rekor!" göstermek için
+
     // Parallax yıldız arkaplan sistemi
     struct Star {
         float x, y, speed, size;
@@ -128,7 +132,7 @@ private:
     int level;
     int highScore = 0;
 
-    enum class State { Menu, Playing, Paused, GameOver } gameState;
+    enum class State { Menu, Playing, Paused, GameOver, LevelUp } gameState;
 
     float swarmSpeed;
     int   swarmDirection;

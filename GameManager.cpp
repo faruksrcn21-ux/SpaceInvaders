@@ -7,6 +7,9 @@
 #include <ctime>
 #include <fstream>
 
+// Seviye geçiş ekranı için durum
+static bool levelUpActive = false;
+
 // Yardımcı: metni yatayda ortala
 static void centreX(sf::Text &t, float windowWidth) {
   sf::FloatRect r = t.getLocalBounds();
@@ -220,6 +223,8 @@ void GameManager::resetGame() {
   shakeTimer_ = 0.f;
   kamikazeTimer_ = 0.f;
   kamikazeInterval_ = 8.f;
+  levelUpTimer_ = 0.f;   // LevelUp sayacı
+  newRecord_    = false; // Yeni Rekor kutlaması
 
   // UFO sıfırla
   ufo_.active = false;
@@ -330,6 +335,33 @@ void GameManager::update(float DeltaTime) {
       shakeTimer_ = 0.f;
   }
 
+  // LevelUp sayacı — 2sn sonra yeni dalgayı başlat
+  if (gameState == State::LevelUp) {
+    levelUpTimer_ -= DeltaTime;
+    if (levelUpTimer_ <= 0.f) {
+      // Yeni dalgayı hazırla
+      swarmSpeed = std::min(swarmSpeed + 10.f, 250.f);  // Sınırlı artış
+      swarmMoveInterval  = std::max(0.5f, swarmMoveInterval * 0.95f);
+      dropPending        = false;
+      swarmDirection     = 1;
+      enemyShootInterval = std::max(0.2f, enemyShootInterval * 0.9f);
+      kamikazeInterval_  = std::max(3.f, 8.f - level * 0.4f);
+      
+      // Vektörleri güvenli bir şekilde temizle
+      bullets.clear();
+      enemyBullets.clear();
+      explosions.clear();
+      floatingTexts_.clear();
+      barriers.clear();
+      barriers.push_back(Barrier(100.f, BARRIER_Y));
+      barriers.push_back(Barrier(350.f, BARRIER_Y));
+      barriers.push_back(Barrier(600.f, BARRIER_Y));
+      initLevel();
+      gameState = State::Playing;
+    }
+    return; // LevelUp ekranındayken oyun mantığı çalışmasın
+  }
+
   // Menü ve bitiş ekranlarında oyun mantığı çalışmaz
   if (gameState != State::Playing)
     return;
@@ -408,7 +440,7 @@ void GameManager::updateEntities(float DeltaTime) {
   if (swarmMoveTimer >= swarmMoveInterval) {
     swarmMoveTimer = 0.f;
 
-    // YENİ: Düşmanlar adım attığında "kalp atışı" sesini çal
+    // Düşmanlar adım attığında "kalp atışı" sesini çal
     sound_.playFleetStep();
 
     if (dropPending) {
@@ -495,7 +527,7 @@ void GameManager::checkCollisions() {
       ufo_.active = false;
       sound_.stopUfo();
 
-      // Orijinal oyun: 50, 100, 150 veya 300 puan (rastgele)
+      // 50, 100, 150 veya 300 puan (rastgele)
       static const int UFO_POINTS[] = {50, 100, 150, 300};
       int pts = UFO_POINTS[rand() % 4];
       score += pts;
@@ -512,7 +544,7 @@ void GameManager::checkCollisions() {
       ft.lifeTimer = 1.2f;
       ft.maxLife = 1.2f;
       ft.speed = 40.f;
-      ft.text.setPosition(ft.x, ft.y); // FIX 15: ilk kare (0,0)'da görünmesin
+      ft.text.setPosition(ft.x, ft.y); // ilk kare (0,0)'da görünmesin
       floatingTexts_.push_back(ft);
 
       explosions.emplace_back(ufo_.x + 23.f, ufo_.y + 10.f,
@@ -543,7 +575,7 @@ void GameManager::checkCollisions() {
         ft.lifeTimer = 0.8f;
         ft.maxLife = 0.8f;
         ft.speed = 30.f;
-        ft.text.setPosition(ft.x, ft.y); //ilk kare (0,0) değil, düşmanın üstünde başlasın
+        ft.text.setPosition(ft.x, ft.y); // ilk kare (0,0)'da görünmesin
         floatingTexts_.push_back(ft);
 
         sf::Color expColor;
@@ -597,7 +629,7 @@ void GameManager::checkCollisions() {
       playerHit(false);
       continue;
     }
-    bool hit = false;
+
     if (checkBarrierCollision(enemyBullets[i].getBounds())) {
       eBulletAlive[i] = false;
     }
@@ -645,33 +677,23 @@ void GameManager::checkGameState() {
     }
   }
 
-  // Bölüm sonu — Sürekli yeni dalga (sonsuz seviye)
+  // Bölüm sonu — seviye geçiş ekranı göster, sonra yeni dalga
   if (enemies.empty() && gameState == State::Playing) {
     level++;
     levelText.setString("Seviye: " + std::to_string(level));
-    swarmSpeed += 15.f;
-    swarmMoveInterval = 0.8f;
-    dropPending = false;
-    swarmDirection = 1;
-    enemyShootInterval = std::max(0.25f, enemyShootInterval * 0.85f);
-    kamikazeInterval_ = std::max(2.5f, 8.f - level * 0.6f);
-    bullets.clear();
-    enemyBullets.clear();
 
-    barriers.clear();
-    barriers.push_back(Barrier(100.f, BARRIER_Y));
-    barriers.push_back(Barrier(350.f, BARRIER_Y));
-    barriers.push_back(Barrier(600.f, BARRIER_Y));
-
-    // High score güncelle
+    // Yeni rekor kontrolü
     if (score > highScore) {
       highScore = score;
+      newRecord_ = true;
       highScoreText.setString("En Yuksek Skor: " + std::to_string(highScore));
       centreX(highScoreText, WINDOW_WIDTH);
       saveHighScore();
     }
 
-    initLevel();
+    // Playing → LevelUp, 2sn sonra yeni dalga başlar
+    levelUpTimer_ = LEVELUP_DURATION;
+    gameState     = State::LevelUp;
   }
 }
 
@@ -790,23 +812,30 @@ void GameManager::render() {
     window.draw(soundStatusText);
 
   } else if (gameState == State::Playing) {
-    for (auto &enemy : enemies)
-      enemy.draw(window);
-    for (auto &bullet : bullets)
-      bullet.draw(window);
-    for (auto &eBullet : enemyBullets)
-      eBullet.draw(window);
-    for (auto &barrier : barriers)
-      barrier.draw(window);
+    // Güvenli vector rendering
+    if (!enemies.empty())
+      for (auto &enemy : enemies)
+        enemy.draw(window);
+    if (!bullets.empty())
+      for (auto &bullet : bullets)
+        bullet.draw(window);
+    if (!enemyBullets.empty())
+      for (auto &eBullet : enemyBullets)
+        eBullet.draw(window);
+    if (!barriers.empty())
+      for (auto &barrier : barriers)
+        barrier.draw(window);
     if (playerVisible)
       player.draw(window);
-    for (auto &exp : explosions)
-      exp.draw(window);
+    if (!explosions.empty())
+      for (auto &exp : explosions)
+        exp.draw(window);
     ufo_.draw(window); // UFO en üste çizilir
 
     // Yüzen puan yazıları
-    for (auto &ft : floatingTexts_)
-      ft.draw(window);
+    if (!floatingTexts_.empty())
+      for (auto &ft : floatingTexts_)
+        ft.draw(window);
 
     window.draw(scoreText);
     window.draw(livesText);
@@ -835,9 +864,60 @@ void GameManager::render() {
     window.draw(finalScore);
 
     // High score
+    // Yeni Rekor kutlaması
+    if (newRecord_) {
+      sf::Text recText;
+      recText.setFont(font);
+      recText.setCharacterSize(32);
+      // Yanıp sönen sarı renk (menuTimer_ ile)
+      float pulse = (std::sin(menuTimer_ * 6.f) + 1.f) / 2.f;
+      sf::Uint8 alpha = static_cast<sf::Uint8>(160 + 95 * pulse);
+      recText.setFillColor(sf::Color(255, 220, 0, alpha));
+      recText.setString("** YENi REKOR! **");
+      centreX(recText, WINDOW_WIDTH);
+      recText.setPosition(recText.getPosition().x, 390.f);
+      window.draw(recText);
+    }
+
     highScoreText.setPosition(highScoreText.getPosition().x, 340.f);
     window.draw(highScoreText);
     window.draw(restartHintText);
+
+  // Seviye geçiş ekranı
+  } else if (gameState == State::LevelUp) {
+    drawStars(); // yıldızlar arkada görünsün
+
+    // Büyük seviye numarası — pulse animasyonu
+    sf::Text lvlTitle;
+    lvlTitle.setFont(font);
+    lvlTitle.setCharacterSize(72);
+    float pulse = (std::sin(menuTimer_ * 4.f) + 1.f) / 2.f;
+    sf::Uint8 g = static_cast<sf::Uint8>(180 + 75 * pulse);
+    lvlTitle.setFillColor(sf::Color(80, g, 255));
+    lvlTitle.setString("SEVIYE " + std::to_string(level));
+    centreX(lvlTitle, WINDOW_WIDTH);
+    lvlTitle.setPosition(lvlTitle.getPosition().x, 200.f);
+    window.draw(lvlTitle);
+
+    // Alt açıklama
+    sf::Text subText;
+    subText.setFont(font);
+    subText.setCharacterSize(24);
+    subText.setFillColor(sf::Color(200, 200, 200));
+    subText.setString("Dusmanlar hizlaniyor...");
+    centreX(subText, WINDOW_WIDTH);
+    subText.setPosition(subText.getPosition().x, 310.f);
+    window.draw(subText);
+
+    // Skor göster
+    sf::Text scoreDisp;
+    scoreDisp.setFont(font);
+    scoreDisp.setCharacterSize(22);
+    scoreDisp.setFillColor(sf::Color::Yellow);
+    scoreDisp.setString("Skor: " + std::to_string(score));
+    centreX(scoreDisp, WINDOW_WIDTH);
+    scoreDisp.setPosition(scoreDisp.getPosition().x, 370.f);
+    window.draw(scoreDisp);
 
   } else if (gameState == State::Paused) {
     // Pause ekranında oyun sahnesini de çiz (donmuş halde)
@@ -892,7 +972,7 @@ void GameManager::saveHighScore() {
   }
 }
 
-// ── Parallax Yıldız Sistemi ──────────────────────────────────────────────
+// Parallax Yıldız Sistemi
 void GameManager::initStars() {
   stars_.clear();
   stars_.reserve(STAR_LAYERS * STARS_PER_LAYER);
