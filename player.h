@@ -6,7 +6,7 @@
 class Player {
 public:
     Player();
-    void update(float deltaTime, std::vector<Bullet>& bullets);
+    void update(float deltaTime, std::vector<Bullet>& bullets, bool rapidFire, bool tripleShot, int &bombAmmo);
     void draw(sf::RenderWindow& window);
     sf::FloatRect getBounds() const;
     sf::Vector2f  getPosition() const { return pos; }

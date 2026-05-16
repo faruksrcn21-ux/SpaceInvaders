@@ -68,7 +68,7 @@ void Player::updateShapes() {
   exhaust_R.setPosition(x + 9.f, y);
 }
 
-void Player::update(float deltaTime, std::vector<Bullet> &bullets) {
+void Player::update(float deltaTime, std::vector<Bullet> &bullets, bool rapidFire, bool tripleShot, int &bombAmmo) {
   if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
     pos.x -= movementSpeed * deltaTime;
   if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
@@ -83,11 +83,30 @@ void Player::update(float deltaTime, std::vector<Bullet> &bullets) {
   updateShapes();
 
   shootTimer += deltaTime;
-  if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space) &&
-      shootTimer >= shootCooldown) {
-    float bulletX = pos.x - 2.5f;
-    float bulletY = pos.y - 30.f;
-    bullets.push_back(Bullet(bulletX, bulletY, -1.f, sf::Color::Yellow));
+  
+  float currentCooldown = rapidFire ? (shootCooldown * 0.44f) : shootCooldown; // Hızlı ateş: %56 daha hızlı
+  
+  // Bomba Ateşleme: X veya Sol Shift tuşu
+  bool fireBombPressed = sf::Keyboard::isKeyPressed(sf::Keyboard::X) || sf::Keyboard::isKeyPressed(sf::Keyboard::LShift);
+  if (fireBombPressed && bombAmmo > 0 && shootTimer >= 0.35f) {
+    bullets.push_back(Bullet(pos.x, pos.y - 30.f, -1.f, sf::Color(255, 0, 200), 0.f, true)); // isBomb = true
+    bombAmmo--;
+    shootTimer = 0.0f;
+  }
+  else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space) &&
+      shootTimer >= currentCooldown) {
+    if (tripleShot) {
+      // Orta düz mermi
+      bullets.push_back(Bullet(pos.x - 1.5f, pos.y - 30.f, -1.f, sf::Color(255, 140, 0))); // Turuncu/altın
+      // Sol açılı mermi (yatay hızı -70.f)
+      bullets.push_back(Bullet(pos.x - 8.f, pos.y - 20.f, -1.f, sf::Color(255, 140, 0), -70.f));
+      // Sağ açılı mermi (yatay hızı +70.f)
+      bullets.push_back(Bullet(pos.x + 5.f, pos.y - 20.f, -1.f, sf::Color(255, 140, 0), 70.f));
+    } else {
+      float bulletX = pos.x - 2.5f;
+      float bulletY = pos.y - 30.f;
+      bullets.push_back(Bullet(bulletX, bulletY, -1.f, sf::Color::Yellow));
+    }
     shootTimer = 0.0f;
   }
 }

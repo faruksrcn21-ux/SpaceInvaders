@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 
-
 class GameManager {
 public:
   GameManager();
@@ -36,6 +35,8 @@ private:
   void initStars();
   void updateStars(float dt);
   void drawStars();
+  void spawnPowerUp(float x, float y, float dropChance);
+  void detonateBomb(float x, float y);
 
   sf::RenderWindow window;
   Player player;
@@ -189,6 +190,32 @@ private:
     float maxLifetime;
   };
   std::vector<ThrustParticle> thrustParticles_;
+
+  // Power-up (Güçlendirme) Sistemi
+  enum class PowerUpType { Shield, TripleShot, RapidFire, Bomb };
+  struct PowerUp {
+    PowerUpType type;
+    sf::Vector2f pos;
+    float speed = 120.f;
+    float rotation = 0.f;
+
+    sf::FloatRect getBounds() const {
+      return sf::FloatRect(pos.x - 6.f, pos.y - 9.f, 12.f, 18.f);
+    }
+  };
+  std::vector<PowerUp> powerUps_;
+
+  // Aktif Güçlendirme Sayaçları ve Durumları
+  float shieldTimer_ = 0.f;
+  float tripleShotTimer_ = 0.f;
+  float rapidFireTimer_ = 0.f;
+  int shieldHealth_ = 0; // Kalkanın emebileceği darbe sayısı (max 1)
+  int bombAmmo_ = 0;     // Bomba mühimmatı sayısı (X ile atılır)
+
+  // Bomba Şok Dalgası (Shockwave) Efekti
+  float shockwaveRadius_ = 0.f;
+  float shockwaveMaxRadius_ = 400.f;
+  sf::Vector2f shockwaveCenter_;
 
   // Ekran Sarsıntısı (Screen Shake)
   float shakeTimer_ = 0.f;

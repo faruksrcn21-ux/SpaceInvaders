@@ -3,11 +3,12 @@
 
 class Bullet {
 public:
-    Bullet(float startX, float startY, float dir = -1.0f, sf::Color color = sf::Color::Yellow);
+    Bullet(float startX, float startY, float dir = -1.0f, sf::Color color = sf::Color::Yellow, float vx = 0.f, bool isBomb = false);
     void update(float deltaTime);
     void draw(sf::RenderWindow& window);
     float getY() const;
     sf::FloatRect getBounds() const;
+    bool isBomb() const { return isBomb_; }
 
 private:
     // çekirdek + hale (aura) çift katman
@@ -16,5 +17,7 @@ private:
  
     float speed;
     float direction;
+    float vx_;
     sf::Color color_;
+    bool isBomb_;
 };

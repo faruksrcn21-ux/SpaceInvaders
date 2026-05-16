@@ -78,7 +78,7 @@ GameManager::GameManager()
   menuSubText.setFont(font);
   menuSubText.setCharacterSize(22);
   menuSubText.setFillColor(sf::Color::White);
-  menuSubText.setString("Ok tuslari: Hareket     Bosluk: Ates");
+  menuSubText.setString("Ok tuslari: Hareket     Bosluk: Ates     X: Bomba");
   centreX(menuSubText, WINDOW_WIDTH);
   menuSubText.setPosition(menuSubText.getPosition().x, 290.f);
 
@@ -139,6 +139,8 @@ GameManager::GameManager()
   invincibleTimer = 0.f;
   blinkTimer = 0.f;
   playerVisible = true;
+  shockwaveRadius_ = 400.f; // Başlangıçta çizilmesin
+  bombAmmo_ = 0;            // Bomba cephanesini ilklendir
 
   // oyun menüden başlar
   gameState = State::Menu;
@@ -152,6 +154,36 @@ GameManager::GameManager()
 }
 
 void GameManager::playerHit(bool isKamikaze) {
+  // Eğer kalkan aktifse, darbeyi kalkan emsin!
+  if (shieldTimer_ > 0.f && shieldHealth_ > 0) {
+    shieldHealth_--;
+    if (shieldHealth_ <= 0) {
+      shieldTimer_ = 0.f; // kalkan kırıldı
+    }
+
+    // Kalkan darbe emme görsel efekti
+    sf::FloatRect pb = player.getBounds();
+    explosions.emplace_back(pb.left + pb.width / 2.f, pb.top + pb.height / 2.f,
+                            sf::Color(80, 200, 255),
+                            12); // Parlak mavi kıvılcımlar
+    sound_.playExplosion();
+    addScreenShake(0.2f, 6.f);
+
+    FloatingText ft;
+    ft.text.setFont(font);
+    ft.text.setCharacterSize(15);
+    ft.text.setFillColor(sf::Color(80, 200, 255));
+    ft.text.setString("KALKAN KIRILDI!");
+    ft.x = player.getPosition().x - 30.f;
+    ft.y = player.getPosition().y - 45.f;
+    ft.lifeTimer = 0.8f;
+    ft.maxLife = 0.8f;
+    ft.speed = 30.f;
+    ft.text.setPosition(ft.x, ft.y);
+    floatingTexts_.push_back(ft);
+    return;
+  }
+
   lives--;
   livesText.setString("Can: " + std::to_string(lives));
 
@@ -232,6 +264,15 @@ void GameManager::resetGame() {
   kamikazeInterval_ = 8.f;
   levelUpTimer_ = 0.f; // LevelUp sayacı
   newRecord_ = false;  // Yeni Rekor kutlaması
+
+  // Power-up Sistemini Sıfırla
+  shieldTimer_ = 0.f;
+  tripleShotTimer_ = 0.f;
+  rapidFireTimer_ = 0.f;
+  shieldHealth_ = 0;
+  bombAmmo_ = 0;            // Bomba cephanesini sıfırla
+  shockwaveRadius_ = 400.f; // Başlangıçta çizilmesin
+  powerUps_.clear();
 
   // UFO sıfırla
   ufo_.active = false;
@@ -391,7 +432,9 @@ void GameManager::update(float DeltaTime) {
 void GameManager::updateEntities(float DeltaTime) {
   // Oyuncu ve Mermi Güncellemeleri
   int bulletsBefore = (int)bullets.size();
-  player.update(DeltaTime, bullets);
+  bool rapidActive = (rapidFireTimer_ > 0.f);
+  bool tripleActive = (tripleShotTimer_ > 0.f);
+  player.update(DeltaTime, bullets, rapidActive, tripleActive, bombAmmo_);
   if ((int)bullets.size() > bulletsBefore)
     sound_.playShoot(); // Yeni mermi atıldıysa ses çal
 
@@ -502,6 +545,42 @@ void GameManager::updateEntities(float DeltaTime) {
     }
   }
 
+  // Power-up Sayaçlarını Azalt
+  if (shieldTimer_ > 0.f) {
+    shieldTimer_ -= DeltaTime;
+    if (shieldTimer_ <= 0.f) {
+      shieldTimer_ = 0.f;
+      shieldHealth_ = 0;
+    }
+  }
+  if (tripleShotTimer_ > 0.f) {
+    tripleShotTimer_ -= DeltaTime;
+    if (tripleShotTimer_ <= 0.f)
+      tripleShotTimer_ = 0.f;
+  }
+  if (rapidFireTimer_ > 0.f) {
+    rapidFireTimer_ -= DeltaTime;
+    if (rapidFireTimer_ <= 0.f)
+      rapidFireTimer_ = 0.f;
+  }
+
+  // Düşen Kapsülleri (Power-ups) Güncelle
+  for (auto &p : powerUps_) {
+    p.pos.y += p.speed * DeltaTime;
+    p.rotation += 140.f * DeltaTime; // Kapsülün dönme animasyonu
+  }
+  // Ekran dışına çıkan kapsülleri sil
+  powerUps_.erase(std::remove_if(powerUps_.begin(), powerUps_.end(),
+                                 [](const PowerUp &p) {
+                                   return p.pos.y > WINDOW_HEIGHT + 20.f;
+                                 }),
+                  powerUps_.end());
+
+  // Şok Dalgasını (Shockwave Halkası) Güncelle
+  if (shockwaveRadius_ < shockwaveMaxRadius_) {
+    shockwaveRadius_ += 800.f * DeltaTime; // Hızlıca dışa yayılan halka
+  }
+
   // Düşman Formasyonu (Swarm) Hareketi
   swarmMoveTimer += DeltaTime;
   if (swarmMoveTimer >= swarmMoveInterval) {
@@ -584,6 +663,9 @@ void GameManager::checkCollisions() {
   std::vector<bool> bulletAlive(bullets.size(), true);
   for (int i = 0; i < (int)bullets.size(); i++) {
     if (bullets[i].getY() < 0) {
+      if (bullets[i].isBomb()) {
+        detonateBomb(bullets[i].getBounds().left + 8.f, 10.f);
+      }
       bulletAlive[i] = false;
       continue;
     }
@@ -591,33 +673,39 @@ void GameManager::checkCollisions() {
 
     // UFO Çarpışması
     if (ufo_.active && bullets[i].getBounds().intersects(ufo_.getBounds())) {
-      ufo_.active = false;
-      sound_.stopUfo();
+      if (bullets[i].isBomb()) {
+        detonateBomb(bullets[i].getBounds().left + 8.f,
+                     bullets[i].getBounds().top + 8.f);
+      } else {
+        ufo_.active = false;
+        sound_.stopUfo();
+        spawnPowerUp(ufo_.x + 23.f, ufo_.y + 10.f, 0.50f); // %50 olasılık
 
-      // 50, 100, 150 veya 300 puan (rastgele)
-      static const int UFO_POINTS[] = {50, 100, 150, 300};
-      int pts = UFO_POINTS[rand() % 4];
-      score += pts;
-      scoreText.setString("Skor: " + std::to_string(score));
+        // 50, 100, 150 veya 300 puan (rastgele)
+        static const int UFO_POINTS[] = {50, 100, 150, 300};
+        int pts = UFO_POINTS[rand() % 4];
+        score += pts;
+        scoreText.setString("Skor: " + std::to_string(score));
 
-      // Yüzen puan yazısı
-      FloatingText ft;
-      ft.text.setFont(font);
-      ft.text.setCharacterSize(20);
-      ft.text.setFillColor(sf::Color::Cyan);
-      ft.text.setString("+" + std::to_string(pts));
-      ft.x = ufo_.x + 10.f;
-      ft.y = ufo_.y - 10.f;
-      ft.lifeTimer = 1.2f;
-      ft.maxLife = 1.2f;
-      ft.speed = 40.f;
-      ft.text.setPosition(ft.x, ft.y); // ilk kare (0,0)'da görünmesin
-      floatingTexts_.push_back(ft);
+        // Yüzen puan yazısı
+        FloatingText ft;
+        ft.text.setFont(font);
+        ft.text.setCharacterSize(20);
+        ft.text.setFillColor(sf::Color::Cyan);
+        ft.text.setString("+" + std::to_string(pts));
+        ft.x = ufo_.x + 10.f;
+        ft.y = ufo_.y - 10.f;
+        ft.lifeTimer = 1.2f;
+        ft.maxLife = 1.2f;
+        ft.speed = 40.f;
+        ft.text.setPosition(ft.x, ft.y); // ilk kare (0,0)'da görünmesin
+        floatingTexts_.push_back(ft);
 
-      explosions.emplace_back(ufo_.x + 23.f, ufo_.y + 10.f,
-                              sf::Color(255, 60, 60), 18);
-      sound_.playExplosion();
-      addScreenShake(0.3f, 8.f); // UFO patlayınca hafif sarsıntı
+        explosions.emplace_back(ufo_.x + 23.f, ufo_.y + 10.f,
+                                sf::Color(255, 60, 60), 18);
+        sound_.playExplosion();
+        addScreenShake(0.3f, 8.f); // UFO patlayınca hafif sarsıntı
+      }
       bulletAlive[i] = false;
       continue;
     }
@@ -626,40 +714,50 @@ void GameManager::checkCollisions() {
       if (!enemy.isAlive())
         continue;
       if (bullets[i].getBounds().intersects(enemy.getBounds())) {
-        enemy.takeDamage(1);
-        int pts = enemy.getScore();
-        score += pts;
-        scoreText.setString("Skor: " + std::to_string(score));
+        if (bullets[i].isBomb()) {
+          detonateBomb(bullets[i].getBounds().left + 8.f,
+                       bullets[i].getBounds().top + 8.f);
+        } else {
+          enemy.takeDamage(1);
+          if (!enemy.isAlive()) {
+            float dropChance =
+                enemy.isKamikaze() ? 0.15f : 0.05f; // Kamikaze %15, Normal %5
+            spawnPowerUp(enemy.getX() + 20.f, enemy.getY() + 15.f, dropChance);
+          }
+          int pts = enemy.getScore();
+          score += pts;
+          scoreText.setString("Skor: " + std::to_string(score));
 
-        // Yüzen puan yazısı
-        FloatingText ft;
-        ft.text.setFont(font);
-        ft.text.setCharacterSize(14);
-        ft.text.setFillColor(sf::Color::Yellow);
-        ft.text.setString("+" + std::to_string(pts));
-        ft.x = enemy.getX() + 10.f;
-        ft.y = enemy.getY() - 10.f;
-        ft.lifeTimer = 0.8f;
-        ft.maxLife = 0.8f;
-        ft.speed = 30.f;
-        ft.text.setPosition(ft.x, ft.y); // ilk kare (0,0)'da görünmesin
-        floatingTexts_.push_back(ft);
+          // Yüzen puan yazısı
+          FloatingText ft;
+          ft.text.setFont(font);
+          ft.text.setCharacterSize(14);
+          ft.text.setFillColor(sf::Color::Yellow);
+          ft.text.setString("+" + std::to_string(pts));
+          ft.x = enemy.getX() + 10.f;
+          ft.y = enemy.getY() - 10.f;
+          ft.lifeTimer = 0.8f;
+          ft.maxLife = 0.8f;
+          ft.speed = 30.f;
+          ft.text.setPosition(ft.x, ft.y); // ilk kare (0,0)'da görünmesin
+          floatingTexts_.push_back(ft);
 
-        sf::Color expColor;
-        switch (enemy.getType()) {
-        case EnemyType::A:
-          expColor = sf::Color(255, 80, 220);
-          break;
-        case EnemyType::B:
-          expColor = sf::Color(255, 160, 40);
-          break;
-        case EnemyType::C:
-          expColor = sf::Color(255, 80, 80);
-          break;
+          sf::Color expColor;
+          switch (enemy.getType()) {
+          case EnemyType::A:
+            expColor = sf::Color(255, 80, 220);
+            break;
+          case EnemyType::B:
+            expColor = sf::Color(255, 160, 40);
+            break;
+          case EnemyType::C:
+            expColor = sf::Color(255, 80, 80);
+            break;
+          }
+          explosions.emplace_back(enemy.getX() + 20.f, enemy.getY() + 15.f,
+                                  expColor, 14);
+          sound_.playExplosion();
         }
-        explosions.emplace_back(enemy.getX() + 20.f, enemy.getY() + 15.f,
-                                expColor, 14);
-        sound_.playExplosion();
         hit = true;
         break;
       }
@@ -670,6 +768,10 @@ void GameManager::checkCollisions() {
     }
 
     if (checkBarrierCollision(bullets[i].getBounds())) {
+      if (bullets[i].isBomb()) {
+        detonateBomb(bullets[i].getBounds().left + 8.f,
+                     bullets[i].getBounds().top + 8.f);
+      }
       bulletAlive[i] = false;
       hit = true;
     }
@@ -758,6 +860,67 @@ void GameManager::checkCollisions() {
       sound_.playExplosion();
       addScreenShake(0.2f, 5.f);
     }
+  }
+
+  // Oyuncu vs Güçlendirme Kapsülleri Çarpışması
+  sf::FloatRect pb = player.getBounds();
+  std::vector<bool> pAlive(powerUps_.size(), true);
+  for (int i = 0; i < (int)powerUps_.size(); i++) {
+    if (pb.intersects(powerUps_[i].getBounds())) {
+      pAlive[i] = false;
+
+      std::string floatingMsg = "";
+      sf::Color textCol = sf::Color::White;
+
+      switch (powerUps_[i].type) {
+      case PowerUpType::Shield:
+        shieldTimer_ = 7.0f;
+        shieldHealth_ = 1;
+        floatingMsg = "+KALKAN";
+        textCol = sf::Color(80, 200, 255);
+        sound_.playPowerupPickup();
+        break;
+      case PowerUpType::TripleShot:
+        tripleShotTimer_ = 7.0f;
+        floatingMsg = "+UCLU ATIS";
+        textCol = sf::Color(255, 140, 0);
+        sound_.playPowerupPickup();
+        break;
+      case PowerUpType::RapidFire:
+        rapidFireTimer_ = 7.0f;
+        floatingMsg = "+HIZLI ATIS";
+        textCol = sf::Color(255, 220, 0);
+        sound_.playPowerupPickup();
+        break;
+      case PowerUpType::Bomb:
+        floatingMsg = "+BOMBA CEPHANESI";
+        textCol = sf::Color(255, 0, 200);
+        bombAmmo_++;                // Bomba cephanesini arttır
+        sound_.playPowerupPickup(); // Sentezlenen retro sweep sesini çal
+        break;
+      }
+
+      // Yüzen bilgi yazısını tetikle
+      FloatingText ft;
+      ft.text.setFont(font);
+      ft.text.setCharacterSize(16);
+      ft.text.setFillColor(textCol);
+      ft.text.setString(floatingMsg);
+      ft.x = player.getPosition().x - 20.f;
+      ft.y = player.getPosition().y - 40.f;
+      ft.lifeTimer = 1.0f;
+      ft.maxLife = 1.0f;
+      ft.speed = 40.f;
+      ft.text.setPosition(ft.x, ft.y);
+      floatingTexts_.push_back(ft);
+    }
+  }
+  {
+    int idx = 0;
+    powerUps_.erase(
+        std::remove_if(powerUps_.begin(), powerUps_.end(),
+                       [&](const PowerUp &) { return !pAlive[idx++]; }),
+        powerUps_.end());
   }
 }
 
@@ -936,8 +1099,86 @@ void GameManager::render() {
       window.draw(p.shape);
     }
 
-    if (playerVisible)
+    if (playerVisible) {
       player.draw(window);
+
+      // Oyuncu Kalkan Halkasını Çiz
+      if (shieldTimer_ > 0.f && shieldHealth_ > 0) {
+        sf::CircleShape shieldShape(34.f);
+        shieldShape.setOrigin(34.f, 34.f);
+        shieldShape.setPosition(player.getPosition().x,
+                                player.getPosition().y - 12.f);
+
+        // Zayıflarken yanıp sönme efekti
+        sf::Uint8 alpha = 80;
+        if (shieldTimer_ < 2.f) {
+          alpha = static_cast<sf::Uint8>(
+              40 + 70 * (static_cast<int>(shieldTimer_ * 8.f) % 2));
+        }
+
+        shieldShape.setFillColor(sf::Color(80, 200, 255, alpha));
+        shieldShape.setOutlineColor(
+            sf::Color(150, 230, 255, static_cast<sf::Uint8>(alpha * 2)));
+        shieldShape.setOutlineThickness(2.f);
+        window.draw(shieldShape);
+      }
+    }
+
+    // Düşen Kapsülleri (Power-ups) Çiz
+    for (const auto &p : powerUps_) {
+      sf::RectangleShape capShape(sf::Vector2f(13.f, 20.f));
+      capShape.setOrigin(6.5f, 10.f);
+      capShape.setPosition(p.pos);
+      capShape.setRotation(p.rotation);
+
+      sf::Color c;
+      std::string l = "";
+      if (p.type == PowerUpType::Shield) {
+        c = sf::Color(80, 200, 255);
+        l = "S";
+      } else if (p.type == PowerUpType::TripleShot) {
+        c = sf::Color(255, 140, 0);
+        l = "T";
+      } else if (p.type == PowerUpType::RapidFire) {
+        c = sf::Color(255, 220, 0);
+        l = "R";
+      } else {
+        c = sf::Color(255, 0, 200);
+        l = "B";
+      }
+
+      capShape.setFillColor(sf::Color(c.r, c.g, c.b, 110));
+      capShape.setOutlineColor(c);
+      capShape.setOutlineThickness(1.5f);
+      window.draw(capShape);
+
+      sf::Text text;
+      text.setFont(font);
+      text.setCharacterSize(12);
+      text.setFillColor(sf::Color::White);
+      text.setOutlineColor(sf::Color::Black);
+      text.setOutlineThickness(1.2f);
+      text.setString(l);
+      sf::FloatRect tr = text.getLocalBounds();
+      text.setOrigin(tr.left + tr.width / 2.f, tr.top + tr.height / 2.f);
+      text.setPosition(p.pos);
+      window.draw(text);
+    }
+
+    // Şok Dalgasını (Shockwave) Çiz
+    if (shockwaveRadius_ < shockwaveMaxRadius_) {
+      sf::CircleShape wave(shockwaveRadius_);
+      wave.setOrigin(shockwaveRadius_, shockwaveRadius_);
+      wave.setPosition(shockwaveCenter_);
+      wave.setFillColor(sf::Color::Transparent);
+
+      float alphaRatio = 1.f - (shockwaveRadius_ / shockwaveMaxRadius_);
+      sf::Uint8 alpha = static_cast<sf::Uint8>(255.f * alphaRatio);
+      wave.setOutlineColor(sf::Color(255, 0, 200, alpha));
+      wave.setOutlineThickness(3.f + 5.f * alphaRatio);
+      window.draw(wave);
+    }
+
     if (!explosions.empty())
       for (auto &exp : explosions)
         exp.draw(window);
@@ -951,6 +1192,63 @@ void GameManager::render() {
     window.draw(scoreText);
     window.draw(livesText);
     window.draw(levelText);
+
+    // Aktif Güçlendirme Süre Çubuklarını (HUD Bars) Çiz
+    auto drawPowerUpBar = [&](float y, const std::string &name, float current,
+                              float maxVal, sf::Color color) {
+      sf::RectangleShape bg(sf::Vector2f(100.f, 7.f));
+      bg.setPosition(20.f, y + 4.f);
+      bg.setFillColor(sf::Color(20, 20, 20, 160));
+      bg.setOutlineColor(sf::Color(100, 100, 100, 80));
+      bg.setOutlineThickness(1.f);
+      window.draw(bg);
+
+      float fillWidth = (current / maxVal) * 100.f;
+      if (fillWidth > 100.f)
+        fillWidth = 100.f;
+      if (fillWidth < 0.f)
+        fillWidth = 0.f;
+      sf::RectangleShape fill(sf::Vector2f(fillWidth, 7.f));
+      fill.setPosition(20.f, y + 4.f);
+      fill.setFillColor(color);
+      window.draw(fill);
+
+      sf::Text lbl;
+      lbl.setFont(font);
+      lbl.setCharacterSize(10);
+      lbl.setFillColor(sf::Color(220, 220, 220));
+      lbl.setString(name);
+      lbl.setPosition(130.f, y + 1.f);
+      window.draw(lbl);
+    };
+
+    float barY = 40.f;
+    if (shieldTimer_ > 0.f && shieldHealth_ > 0) {
+      drawPowerUpBar(barY, "KALKAN", shieldTimer_, 7.0f,
+                     sf::Color(80, 200, 255));
+      barY += 15.f;
+    }
+    if (tripleShotTimer_ > 0.f) {
+      drawPowerUpBar(barY, "UCLU ATIS", tripleShotTimer_, 7.0f,
+                     sf::Color(255, 140, 0));
+      barY += 15.f;
+    }
+    if (rapidFireTimer_ > 0.f) {
+      drawPowerUpBar(barY, "HIZLI ATIS", rapidFireTimer_, 7.0f,
+                     sf::Color(255, 220, 0));
+      barY += 15.f;
+    }
+    if (bombAmmo_ > 0) {
+      sf::Text bombLabel;
+      bombLabel.setFont(font);
+      bombLabel.setCharacterSize(11);
+      bombLabel.setFillColor(sf::Color(255, 0, 200)); // Parlak magenta
+      bombLabel.setString("BOMBA CEPHANESI: " + std::to_string(bombAmmo_) +
+                          "  (X / LShift)");
+      bombLabel.setPosition(20.f, barY + 1.f);
+      window.draw(bombLabel);
+      barY += 15.f;
+    }
 
   } else if (gameState == State::GameOver) {
     // High score kontrolü
@@ -1132,4 +1430,112 @@ void GameManager::drawStars() {
     dot.setPosition(s.x, s.y);
     window.draw(dot);
   }
+}
+
+void GameManager::spawnPowerUp(float x, float y, float dropChance) {
+  float rVal = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+  if (rVal > dropChance) {
+    return;
+  }
+
+  PowerUp p;
+  p.pos = sf::Vector2f(x, y);
+
+  // Ağırlıklı rastgele seçim: Kalkan %35, Üçlü %30, Hızlı %25, Bomba %10
+  int r = rand() % 100;
+  if (r < 35) {
+    p.type = PowerUpType::Shield;
+  } else if (r < 65) {
+    p.type = PowerUpType::TripleShot;
+  } else if (r < 90) {
+    p.type = PowerUpType::RapidFire;
+  } else {
+    p.type = PowerUpType::Bomb;
+  }
+
+  powerUps_.push_back(p);
+}
+
+void GameManager::detonateBomb(float x, float y) {
+  // Patlama sesi ve sarsıntı
+  sound_.playBombExplosion();
+  addScreenShake(0.5f, 15.f);
+
+  // Pembe-mor lokal şok dalgası
+  shockwaveRadius_ = 0.f;
+  shockwaveMaxRadius_ = 200.f; // 200 piksel blast yarıçapı
+  shockwaveCenter_ = sf::Vector2f(x, y);
+
+  // Ekrandaki tüm aktif düşman mermilerini anında sil
+  enemyBullets.clear();
+
+  // Şok dalgası içindeki tüm canlı düşmanlara hasar ver
+  sf::Vector2f center(x, y);
+  for (auto &enemy : enemies) {
+    if (enemy.isAlive()) {
+      float dx = enemy.getX() + 20.f - center.x; // düşman merkezi
+      float dy = enemy.getY() + 15.f - center.y;
+      float dist = std::sqrt(dx * dx + dy * dy);
+
+      if (dist <= 200.f) {
+        enemy.takeDamage(1);
+        if (!enemy.isAlive()) {
+          int pts = enemy.getScore();
+          score += pts;
+
+          float dropChance =
+              enemy.isKamikaze() ? 0.15f : 0.05f; // Kamikaze %15, Normal %5
+          spawnPowerUp(enemy.getX() + 20.f, enemy.getY() + 15.f, dropChance);
+
+          // Yüzen bilgi yazısını tetikle
+          FloatingText ft;
+          ft.text.setFont(font);
+          ft.text.setCharacterSize(14);
+          ft.text.setFillColor(sf::Color::Yellow);
+          ft.text.setString("+" + std::to_string(pts));
+          ft.x = enemy.getX() + 10.f;
+          ft.y = enemy.getY() - 10.f;
+          ft.lifeTimer = 0.8f;
+          ft.maxLife = 0.8f;
+          ft.speed = 30.f;
+          ft.text.setPosition(ft.x, ft.y);
+          floatingTexts_.push_back(ft);
+        }
+      }
+    }
+  }
+
+  // Şok dalgası içindeki aktif UFO'yu vur
+  if (ufo_.active) {
+    float dx = ufo_.x + 23.f - center.x;
+    float dy = ufo_.y + 10.f - center.y;
+    float dist = std::sqrt(dx * dx + dy * dy);
+    if (dist <= 200.f) {
+      ufo_.active = false;
+      sound_.stopUfo();
+
+      static const int UFO_POINTS[] = {50, 100, 150, 300};
+      int pts = UFO_POINTS[rand() % 4];
+      score += pts;
+
+      FloatingText ft;
+      ft.text.setFont(font);
+      ft.text.setCharacterSize(20);
+      ft.text.setFillColor(sf::Color::Cyan);
+      ft.text.setString("+" + std::to_string(pts));
+      ft.x = ufo_.x + 10.f;
+      ft.y = ufo_.y - 10.f;
+      ft.lifeTimer = 1.2f;
+      ft.maxLife = 1.2f;
+      ft.speed = 40.f;
+      ft.text.setPosition(ft.x, ft.y);
+      floatingTexts_.push_back(ft);
+
+      explosions.emplace_back(ufo_.x + 23.f, ufo_.y + 10.f,
+                              sf::Color(255, 60, 60), 18);
+      spawnPowerUp(ufo_.x + 23.f, ufo_.y + 10.f, 0.50f); // %50 olasılık
+    }
+  }
+
+  scoreText.setString("Skor: " + std::to_string(score));
 }
