@@ -6,7 +6,6 @@
 #include "Player.h"
 #include "SoundManager.h"
 #include <SFML/Graphics.hpp>
-#include <fstream>
 #include <string>
 #include <vector>
 
@@ -55,81 +54,10 @@ private:
     bool active = false;
     int direction = 1; // +1 soldan sağa, -1 sağdan sola
     float speed = 130.f;
+    sf::Clock clock;   // Yerel olmayan sf::Clock üye değişkeni
 
-    sf::FloatRect getBounds() const { return sf::FloatRect(x, y, 46.f, 20.f); }
-    void draw(sf::RenderWindow &window) const {
-      if (!active)
-        return;
-
-      static sf::Clock clock;
-      float time = clock.getElapsedTime().asSeconds();
-      float pulse = (std::sin(time * 8.f) + 1.f) / 2.f;
-
-      // Neon Alt Işıma (Kırmızı/Turuncu Enerji Işıması)
-      sf::RectangleShape glow(sf::Vector2f(34.f, 3.f));
-      glow.setPosition(x + 6.f, y + 17.f);
-      glow.setFillColor(
-          sf::Color(255, 50, 0, static_cast<sf::Uint8>(100 + pulse * 155)));
-      window.draw(glow);
-
-      // Klasik Uçan Daire Gövdesi (Stretched Hexagon/Octagon)
-      sf::ConvexShape saucer;
-      saucer.setPointCount(6);
-      saucer.setPoint(0, sf::Vector2f(x + 10.f, y + 5.f));  // sol üst
-      saucer.setPoint(1, sf::Vector2f(x + 36.f, y + 5.f));  // sağ üst
-      saucer.setPoint(2, sf::Vector2f(x + 46.f, y + 10.f)); // sağ orta
-      saucer.setPoint(3, sf::Vector2f(x + 36.f, y + 15.f)); // sağ alt
-      saucer.setPoint(4, sf::Vector2f(x + 10.f, y + 15.f)); // sol alt
-      saucer.setPoint(5, sf::Vector2f(x, y + 10.f));        // sol orta
-
-      saucer.setFillColor(sf::Color(180, 20, 20));
-      saucer.setOutlineColor(sf::Color(255, 80, 80));
-      saucer.setOutlineThickness(1.5f);
-      window.draw(saucer);
-
-      // Ortadaki Kokpit Kubbesi (Klasik Uçan Daire Camı - Pulsing Cyan)
-      sf::ConvexShape dome;
-      dome.setPointCount(4);
-      dome.setPoint(0, sf::Vector2f(x + 16.f, y + 5.f)); // sol alt
-      dome.setPoint(1, sf::Vector2f(x + 30.f, y + 5.f)); // sağ alt
-      dome.setPoint(2, sf::Vector2f(x + 26.f, y + 0.f)); // sağ üst
-      dome.setPoint(3, sf::Vector2f(x + 20.f, y + 0.f)); // sol üst
-
-      dome.setFillColor(
-          sf::Color(0, 220, 255, static_cast<sf::Uint8>(200 + pulse * 55)));
-      dome.setOutlineColor(sf::Color(150, 255, 255));
-      dome.setOutlineThickness(1.f);
-      window.draw(dome);
-
-      // Dönen Sıralı Yanıp Sönen Flaşör Işıklar (3 adet)
-      sf::Color light1 = (static_cast<int>(time * 6.f) % 3 == 0)
-                             ? sf::Color::Yellow
-                             : sf::Color(100, 80, 0);
-      sf::Color light2 = (static_cast<int>(time * 6.f) % 3 == 1)
-                             ? sf::Color::Yellow
-                             : sf::Color(100, 80, 0);
-      sf::Color light3 = (static_cast<int>(time * 6.f) % 3 == 2)
-                             ? sf::Color::Yellow
-                             : sf::Color(100, 80, 0);
-
-      // Sol ışık
-      sf::RectangleShape lightL(sf::Vector2f(3.f, 3.f));
-      lightL.setPosition(x + 12.f, y + 9.f);
-      lightL.setFillColor(light1);
-      window.draw(lightL);
-
-      // Orta ışık
-      sf::RectangleShape lightM(sf::Vector2f(3.f, 3.f));
-      lightM.setPosition(x + 22.f, y + 9.f);
-      lightM.setFillColor(light2);
-      window.draw(lightM);
-
-      // Sağ ışık
-      sf::RectangleShape lightR(sf::Vector2f(3.f, 3.f));
-      lightR.setPosition(x + 32.f, y + 9.f);
-      lightR.setFillColor(light3);
-      window.draw(lightR);
-    }
+    sf::FloatRect getBounds() const;
+    void draw(sf::RenderWindow &window);
   };
   Ufo ufo_;
   float ufoSpawnTimer_ = 0.f;
