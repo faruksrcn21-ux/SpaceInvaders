@@ -2,13 +2,10 @@
 #include "Enemy.h"
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
-#include <ctime>
 #include <fstream>
-
-// Seviye geçiş ekranı için durum
-static bool levelUpActive = false;
+#include <iostream>
+#include <random>
 
 // Yardımcı: metni yatayda ortala
 static void centreX(sf::Text &t, float windowWidth) {
@@ -21,24 +18,26 @@ GameManager::GameManager()
     : window(sf::VideoMode((unsigned int)WINDOW_WIDTH,
                            (unsigned int)WINDOW_HEIGHT),
              "Space Invaders") {
-  srand((unsigned int)time(0));
+  // Kaliteli random seed (time(0) yerine donanım entropi kaynağı)
+  srand(std::random_device{}());
 
-  // fontLoaded artık local değişken (member field değil)
-  bool fontLoaded = font.loadFromFile("assets/font.ttf");
+  // Font yükleme — birden fazla platform yolu denenir
+  static const char *FONT_PATHS[] = {
+      "assets/font.ttf",
+      "C:/Windows/Fonts/consola.ttf",
+      "C:/Windows/Fonts/arial.ttf",
+      "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+      "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+      "/Library/Fonts/Courier New.ttf"};
+  bool fontLoaded = false;
+  for (const char *path : FONT_PATHS) {
+    if (font.loadFromFile(path)) {
+      fontLoaded = true;
+      break;
+    }
+  }
   if (!fontLoaded)
-    fontLoaded = font.loadFromFile("C:/Windows/Fonts/consola.ttf");
-  if (!fontLoaded)
-    fontLoaded = font.loadFromFile("C:/Windows/Fonts/arial.ttf");
-  if (!fontLoaded)
-    fontLoaded = font.loadFromFile(
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf");
-  if (!fontLoaded)
-    fontLoaded = font.loadFromFile(
-        "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf");
-  if (!fontLoaded)
-    fontLoaded = font.loadFromFile("/Library/Fonts/Courier New.ttf");
-  if (!fontLoaded)
-    printf("[UYARI] Font yuklenemedi! 'assets/font.ttf' ekleyin.\n");
+    std::cerr << "[UYARI] Font yuklenemedi! 'assets/font.ttf' ekleyin.\n";
 
   // HUD metinleri
   scoreText.setFont(font);
@@ -872,22 +871,23 @@ void GameManager::checkCollisions() {
       std::string floatingMsg = "";
       sf::Color textCol = sf::Color::White;
 
+      static constexpr float POWERUP_DURATION = 7.0f;
       switch (powerUps_[i].type) {
       case PowerUpType::Shield:
-        shieldTimer_ = 7.0f;
+        shieldTimer_ = POWERUP_DURATION;
         shieldHealth_ = 1;
         floatingMsg = "+KALKAN";
         textCol = sf::Color(80, 200, 255);
         sound_.playPowerupPickup();
         break;
       case PowerUpType::TripleShot:
-        tripleShotTimer_ = 7.0f;
+        tripleShotTimer_ = POWERUP_DURATION;
         floatingMsg = "+UCLU ATIS";
         textCol = sf::Color(255, 140, 0);
         sound_.playPowerupPickup();
         break;
       case PowerUpType::RapidFire:
-        rapidFireTimer_ = 7.0f;
+        rapidFireTimer_ = POWERUP_DURATION;
         floatingMsg = "+HIZLI ATIS";
         textCol = sf::Color(255, 220, 0);
         sound_.playPowerupPickup();
@@ -939,6 +939,15 @@ void GameManager::checkGameState() {
   if (gameState == State::Playing) {
     for (auto &enemy : enemies) {
       if (!enemy.isKamikaze() && enemy.getY() + 30.f >= ENEMY_BOTTOM_LIMIT) {
+        // High score kontrolü — state geçişinde yapılır, render'da değil
+        if (score > highScore) {
+          highScore = score;
+          newRecord_ = true;
+          highScoreText.setString("En Yuksek Skor: " +
+                                  std::to_string(highScore));
+          centreX(highScoreText, WINDOW_WIDTH);
+          saveHighScore();
+        }
         gameState = State::GameOver;
         break;
       }
@@ -1251,14 +1260,6 @@ void GameManager::render() {
     }
 
   } else if (gameState == State::GameOver) {
-    // High score kontrolü
-    if (score > highScore) {
-      highScore = score;
-      highScoreText.setString("En Yuksek Skor: " + std::to_string(highScore));
-      centreX(highScoreText, WINDOW_WIDTH);
-      saveHighScore();
-    }
-
     window.draw(gameOverText);
 
     // Skor ve seviye bilgisi
