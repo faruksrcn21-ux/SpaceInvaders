@@ -28,6 +28,9 @@ private:
   void checkGameState();
 
   // Helper fonksiyonlar
+  static void centreX(sf::Text &t, float windowWidth);
+  void addFloatingText(float x, float y, const std::string &str, sf::Color color, unsigned int characterSize = 14, float lifeTime = 0.8f, float speed = 30.f);
+  void drawPowerUpBar(float y, const std::string &name, float current, float maxVal, sf::Color color);
   void playerHit(bool isKamikaze = false);
   bool checkBarrierCollision(const sf::FloatRect &bounds);
   void loadHighScore();
@@ -140,12 +143,19 @@ private:
   sf::Text menuTitleText, menuSubText, restartHintText;
   sf::Text pauseText, pauseHintText, soundStatusText;
   sf::Text highScoreText; // menüde ve GameOver'da gösterilecek
+  
+  // Tekrar kullanılabilir (reusable) HUD ve Menü Yazıları
+  sf::Text nameText, ptsText, controlsText, enterHintText;
+  sf::Text bombLabelText, finalScoreText, newRecordText;
+  sf::Text lvlTitleText, subTextText, scoreDispText;
+  sf::Text powerupBarLabelText;
 
   // Menü animasyon zamanlayıcısı
   float menuTimer_ = 0.f;
 
   float levelUpTimer_ = 0.f; // 2sn gösterim sayacı
   static constexpr float LEVELUP_DURATION = 2.0f;
+  static constexpr float POWERUP_DURATION = 7.0f;
   bool newRecord_ = false; // GameOver'da "Yeni Rekor!" göstermek için
 
   // Parallax yıldız arkaplan sistemi

@@ -8,7 +8,7 @@
 #include <random>
 
 // Yardımcı: metni yatayda ortala
-static void centreX(sf::Text &t, float windowWidth) {
+void GameManager::centreX(sf::Text &t, float windowWidth) {
   sf::FloatRect r = t.getLocalBounds();
   t.setOrigin(r.left + r.width / 2.f, 0.f);
   t.setPosition(windowWidth / 2.f, t.getPosition().y);
@@ -168,18 +168,7 @@ void GameManager::playerHit(bool isKamikaze) {
     sound_.playExplosion();
     addScreenShake(0.2f, 6.f);
 
-    FloatingText ft;
-    ft.text.setFont(font);
-    ft.text.setCharacterSize(15);
-    ft.text.setFillColor(sf::Color(80, 200, 255));
-    ft.text.setString("KALKAN KIRILDI!");
-    ft.x = player.getPosition().x - 30.f;
-    ft.y = player.getPosition().y - 45.f;
-    ft.lifeTimer = 0.8f;
-    ft.maxLife = 0.8f;
-    ft.speed = 30.f;
-    ft.text.setPosition(ft.x, ft.y);
-    floatingTexts_.push_back(ft);
+    addFloatingText(player.getPosition().x - 30.f, player.getPosition().y - 45.f, "KALKAN KIRILDI!", sf::Color(80, 200, 255), 15);
     return;
   }
 
@@ -687,18 +676,7 @@ void GameManager::checkCollisions() {
         scoreText.setString("Skor: " + std::to_string(score));
 
         // Yüzen puan yazısı
-        FloatingText ft;
-        ft.text.setFont(font);
-        ft.text.setCharacterSize(20);
-        ft.text.setFillColor(sf::Color::Cyan);
-        ft.text.setString("+" + std::to_string(pts));
-        ft.x = ufo_.x + 10.f;
-        ft.y = ufo_.y - 10.f;
-        ft.lifeTimer = 1.2f;
-        ft.maxLife = 1.2f;
-        ft.speed = 40.f;
-        ft.text.setPosition(ft.x, ft.y); // ilk kare (0,0)'da görünmesin
-        floatingTexts_.push_back(ft);
+        addFloatingText(ufo_.x + 10.f, ufo_.y - 10.f, "+" + std::to_string(pts), sf::Color::Cyan, 20, 1.2f, 40.f);
 
         explosions.emplace_back(ufo_.x + 23.f, ufo_.y + 10.f,
                                 sf::Color(255, 60, 60), 18);
@@ -728,18 +706,7 @@ void GameManager::checkCollisions() {
           scoreText.setString("Skor: " + std::to_string(score));
 
           // Yüzen puan yazısı
-          FloatingText ft;
-          ft.text.setFont(font);
-          ft.text.setCharacterSize(14);
-          ft.text.setFillColor(sf::Color::Yellow);
-          ft.text.setString("+" + std::to_string(pts));
-          ft.x = enemy.getX() + 10.f;
-          ft.y = enemy.getY() - 10.f;
-          ft.lifeTimer = 0.8f;
-          ft.maxLife = 0.8f;
-          ft.speed = 30.f;
-          ft.text.setPosition(ft.x, ft.y); // ilk kare (0,0)'da görünmesin
-          floatingTexts_.push_back(ft);
+          addFloatingText(enemy.getX() + 10.f, enemy.getY() - 10.f, "+" + std::to_string(pts), sf::Color::Yellow, 14, 0.8f, 30.f);
 
           sf::Color expColor;
           switch (enemy.getType()) {
@@ -901,18 +868,7 @@ void GameManager::checkCollisions() {
       }
 
       // Yüzen bilgi yazısını tetikle
-      FloatingText ft;
-      ft.text.setFont(font);
-      ft.text.setCharacterSize(16);
-      ft.text.setFillColor(textCol);
-      ft.text.setString(floatingMsg);
-      ft.x = player.getPosition().x - 20.f;
-      ft.y = player.getPosition().y - 40.f;
-      ft.lifeTimer = 1.0f;
-      ft.maxLife = 1.0f;
-      ft.speed = 40.f;
-      ft.text.setPosition(ft.x, ft.y);
-      floatingTexts_.push_back(ft);
+      addFloatingText(player.getPosition().x - 20.f, player.getPosition().y - 40.f, floatingMsg, textCol, 16, 1.0f, 40.f);
     }
   }
   {
@@ -1046,7 +1002,6 @@ void GameManager::render() {
       icon.setPosition(280.f, infoY + i * 32.f + 2.f);
       window.draw(icon);
 
-      sf::Text nameText;
       nameText.setFont(font);
       nameText.setCharacterSize(17);
       nameText.setFillColor(infos[i].color);
@@ -1054,7 +1009,6 @@ void GameManager::render() {
       nameText.setPosition(308.f, infoY + i * 32.f);
       window.draw(nameText);
 
-      sf::Text ptsText;
       ptsText.setFont(font);
       ptsText.setCharacterSize(17);
       ptsText.setFillColor(sf::Color(220, 220, 220));
@@ -1064,26 +1018,24 @@ void GameManager::render() {
     }
 
     // Kontrol kısayolları
-    sf::Text controls;
-    controls.setFont(font);
-    controls.setCharacterSize(15);
-    controls.setFillColor(sf::Color(100, 100, 120));
-    controls.setString("P: Duraklat     ESC: Cikis");
-    centreX(controls, WINDOW_WIDTH);
-    controls.setPosition(controls.getPosition().x, 448.f);
-    window.draw(controls);
+    controlsText.setFont(font);
+    controlsText.setCharacterSize(15);
+    controlsText.setFillColor(sf::Color(100, 100, 120));
+    controlsText.setString("P: Duraklat     ESC: Cikis");
+    centreX(controlsText, WINDOW_WIDTH);
+    controlsText.setPosition(controlsText.getPosition().x, 448.f);
+    window.draw(controlsText);
 
     // Yanıp sönen ENTER ipucu
     float blinkAlpha = (std::sin(menuTimer_ * 4.f) + 1.f) / 2.f;
-    sf::Text enterHint;
-    enterHint.setFont(font);
-    enterHint.setCharacterSize(26);
-    enterHint.setFillColor(sf::Color(
+    enterHintText.setFont(font);
+    enterHintText.setCharacterSize(26);
+    enterHintText.setFillColor(sf::Color(
         255, 255, 100, static_cast<sf::Uint8>(80 + blinkAlpha * 175)));
-    enterHint.setString("[  ENTER ile baslat  ]");
-    centreX(enterHint, WINDOW_WIDTH);
-    enterHint.setPosition(enterHint.getPosition().x, 490.f);
-    window.draw(enterHint);
+    enterHintText.setString("[  ENTER ile baslat  ]");
+    centreX(enterHintText, WINDOW_WIDTH);
+    enterHintText.setPosition(enterHintText.getPosition().x, 490.f);
+    window.draw(enterHintText);
 
     // Ses durumu
     window.draw(soundStatusText);
@@ -1203,59 +1155,30 @@ void GameManager::render() {
     window.draw(levelText);
 
     // Aktif Güçlendirme Süre Çubuklarını (HUD Bars) Çiz
-    auto drawPowerUpBar = [&](float y, const std::string &name, float current,
-                              float maxVal, sf::Color color) {
-      sf::RectangleShape bg(sf::Vector2f(100.f, 7.f));
-      bg.setPosition(20.f, y + 4.f);
-      bg.setFillColor(sf::Color(20, 20, 20, 160));
-      bg.setOutlineColor(sf::Color(100, 100, 100, 80));
-      bg.setOutlineThickness(1.f);
-      window.draw(bg);
-
-      float fillWidth = (current / maxVal) * 100.f;
-      if (fillWidth > 100.f)
-        fillWidth = 100.f;
-      if (fillWidth < 0.f)
-        fillWidth = 0.f;
-      sf::RectangleShape fill(sf::Vector2f(fillWidth, 7.f));
-      fill.setPosition(20.f, y + 4.f);
-      fill.setFillColor(color);
-      window.draw(fill);
-
-      sf::Text lbl;
-      lbl.setFont(font);
-      lbl.setCharacterSize(10);
-      lbl.setFillColor(sf::Color(220, 220, 220));
-      lbl.setString(name);
-      lbl.setPosition(130.f, y + 1.f);
-      window.draw(lbl);
-    };
-
     float barY = 40.f;
     if (shieldTimer_ > 0.f && shieldHealth_ > 0) {
-      drawPowerUpBar(barY, "KALKAN", shieldTimer_, 7.0f,
+      drawPowerUpBar(barY, "KALKAN", shieldTimer_, POWERUP_DURATION,
                      sf::Color(80, 200, 255));
       barY += 15.f;
     }
     if (tripleShotTimer_ > 0.f) {
-      drawPowerUpBar(barY, "UCLU ATIS", tripleShotTimer_, 7.0f,
+      drawPowerUpBar(barY, "UCLU ATIS", tripleShotTimer_, POWERUP_DURATION,
                      sf::Color(255, 140, 0));
       barY += 15.f;
     }
     if (rapidFireTimer_ > 0.f) {
-      drawPowerUpBar(barY, "HIZLI ATIS", rapidFireTimer_, 7.0f,
+      drawPowerUpBar(barY, "HIZLI ATIS", rapidFireTimer_, POWERUP_DURATION,
                      sf::Color(255, 220, 0));
       barY += 15.f;
     }
     if (bombAmmo_ > 0) {
-      sf::Text bombLabel;
-      bombLabel.setFont(font);
-      bombLabel.setCharacterSize(11);
-      bombLabel.setFillColor(sf::Color(255, 0, 200)); // Parlak magenta
-      bombLabel.setString("BOMBA CEPHANESI: " + std::to_string(bombAmmo_) +
+      bombLabelText.setFont(font);
+      bombLabelText.setCharacterSize(11);
+      bombLabelText.setFillColor(sf::Color(255, 0, 200)); // Parlak magenta
+      bombLabelText.setString("BOMBA CEPHANESI: " + std::to_string(bombAmmo_) +
                           "  (X / LShift)");
-      bombLabel.setPosition(20.f, barY + 1.f);
-      window.draw(bombLabel);
+      bombLabelText.setPosition(20.f, barY + 1.f);
+      window.draw(bombLabelText);
       barY += 15.f;
     }
 
@@ -1263,32 +1186,30 @@ void GameManager::render() {
     window.draw(gameOverText);
 
     // Skor ve seviye bilgisi
-    sf::Text finalScore;
-    finalScore.setFont(font);
-    finalScore.setCharacterSize(28);
-    finalScore.setFillColor(sf::Color::White);
-    finalScore.setString("Skor: " + std::to_string(score) +
+    finalScoreText.setFont(font);
+    finalScoreText.setCharacterSize(28);
+    finalScoreText.setFillColor(sf::Color::White);
+    finalScoreText.setString("Skor: " + std::to_string(score) +
                          "     Seviye: " + std::to_string(level));
-    centreX(finalScore, WINDOW_WIDTH);
-    finalScore.setPosition(finalScore.getPosition().x, 290.f);
-    window.draw(finalScore);
+    centreX(finalScoreText, WINDOW_WIDTH);
+    finalScoreText.setPosition(finalScoreText.getPosition().x, 290.f);
+    window.draw(finalScoreText);
 
     // High score
     // Yeni Rekor kutlaması
     if (newRecord_) {
-      sf::Text recText;
-      recText.setFont(font);
-      recText.setCharacterSize(38);
+      newRecordText.setFont(font);
+      newRecordText.setCharacterSize(38);
       // Yanıp sönen sarı renk (menuTimer_ ile)
       float pulse = (std::sin(menuTimer_ * 6.f) + 1.f) / 2.f;
       sf::Uint8 alpha = static_cast<sf::Uint8>(180 + 75 * pulse);
-      recText.setFillColor(sf::Color(255, 255, 0, alpha));
-      recText.setOutlineColor(sf::Color(255, 120, 0, alpha));
-      recText.setOutlineThickness(2.f);
-      recText.setString("!!! YENI REKOR !!!");
-      centreX(recText, WINDOW_WIDTH);
-      recText.setPosition(recText.getPosition().x, 400.f);
-      window.draw(recText);
+      newRecordText.setFillColor(sf::Color(255, 255, 0, alpha));
+      newRecordText.setOutlineColor(sf::Color(255, 120, 0, alpha));
+      newRecordText.setOutlineThickness(2.f);
+      newRecordText.setString("!!! YENI REKOR !!!");
+      centreX(newRecordText, WINDOW_WIDTH);
+      newRecordText.setPosition(newRecordText.getPosition().x, 400.f);
+      window.draw(newRecordText);
     }
 
     highScoreText.setPosition(highScoreText.getPosition().x, 350.f);
@@ -1302,36 +1223,33 @@ void GameManager::render() {
     drawStars(); // yıldızlar arkada görünsün
 
     // Büyük seviye numarası — pulse animasyonu
-    sf::Text lvlTitle;
-    lvlTitle.setFont(font);
-    lvlTitle.setCharacterSize(72);
+    lvlTitleText.setFont(font);
+    lvlTitleText.setCharacterSize(72);
     float pulse = (std::sin(menuTimer_ * 4.f) + 1.f) / 2.f;
     sf::Uint8 g = static_cast<sf::Uint8>(180 + 75 * pulse);
-    lvlTitle.setFillColor(sf::Color(80, g, 255));
-    lvlTitle.setString("SEVIYE " + std::to_string(level));
-    centreX(lvlTitle, WINDOW_WIDTH);
-    lvlTitle.setPosition(lvlTitle.getPosition().x, 200.f);
-    window.draw(lvlTitle);
+    lvlTitleText.setFillColor(sf::Color(80, g, 255));
+    lvlTitleText.setString("SEVIYE " + std::to_string(level));
+    centreX(lvlTitleText, WINDOW_WIDTH);
+    lvlTitleText.setPosition(lvlTitleText.getPosition().x, 200.f);
+    window.draw(lvlTitleText);
 
     // Alt açıklama
-    sf::Text subText;
-    subText.setFont(font);
-    subText.setCharacterSize(24);
-    subText.setFillColor(sf::Color(200, 200, 200));
-    subText.setString("Hazir Ol!");
-    centreX(subText, WINDOW_WIDTH);
-    subText.setPosition(subText.getPosition().x, 310.f);
-    window.draw(subText);
+    subTextText.setFont(font);
+    subTextText.setCharacterSize(24);
+    subTextText.setFillColor(sf::Color(200, 200, 200));
+    subTextText.setString("Hazir Ol!");
+    centreX(subTextText, WINDOW_WIDTH);
+    subTextText.setPosition(subTextText.getPosition().x, 310.f);
+    window.draw(subTextText);
 
     // Skor göster
-    sf::Text scoreDisp;
-    scoreDisp.setFont(font);
-    scoreDisp.setCharacterSize(22);
-    scoreDisp.setFillColor(sf::Color::Yellow);
-    scoreDisp.setString("Skor: " + std::to_string(score));
-    centreX(scoreDisp, WINDOW_WIDTH);
-    scoreDisp.setPosition(scoreDisp.getPosition().x, 370.f);
-    window.draw(scoreDisp);
+    scoreDispText.setFont(font);
+    scoreDispText.setCharacterSize(22);
+    scoreDispText.setFillColor(sf::Color::Yellow);
+    scoreDispText.setString("Skor: " + std::to_string(score));
+    centreX(scoreDispText, WINDOW_WIDTH);
+    scoreDispText.setPosition(scoreDispText.getPosition().x, 370.f);
+    window.draw(scoreDispText);
 
   } else if (gameState == State::Paused) {
     // Pause ekranında oyun sahnesini de çiz (donmuş halde)
@@ -1433,6 +1351,45 @@ void GameManager::drawStars() {
   }
 }
 
+void GameManager::addFloatingText(float x, float y, const std::string &str, sf::Color color, unsigned int characterSize, float lifeTime, float speed) {
+  FloatingText ft;
+  ft.text.setFont(font);
+  ft.text.setCharacterSize(characterSize);
+  ft.text.setFillColor(color);
+  ft.text.setString(str);
+  ft.x = x;
+  ft.y = y;
+  ft.lifeTimer = lifeTime;
+  ft.maxLife = lifeTime;
+  ft.speed = speed;
+  ft.text.setPosition(x, y);
+  floatingTexts_.push_back(ft);
+}
+
+void GameManager::drawPowerUpBar(float y, const std::string &name, float current, float maxVal, sf::Color color) {
+  sf::RectangleShape bg(sf::Vector2f(100.f, 7.f));
+  bg.setPosition(20.f, y + 4.f);
+  bg.setFillColor(sf::Color(20, 20, 20, 160));
+  bg.setOutlineColor(sf::Color(100, 100, 100, 80));
+  bg.setOutlineThickness(1.f);
+  window.draw(bg);
+  
+  float fillWidth = (current / maxVal) * 100.f;
+  if (fillWidth > 100.f) fillWidth = 100.f;
+  if (fillWidth < 0.f) fillWidth = 0.f;
+  sf::RectangleShape fill(sf::Vector2f(fillWidth, 7.f));
+  fill.setPosition(20.f, y + 4.f);
+  fill.setFillColor(color);
+  window.draw(fill);
+  
+  powerupBarLabelText.setFont(font);
+  powerupBarLabelText.setCharacterSize(10);
+  powerupBarLabelText.setFillColor(sf::Color(220, 220, 220));
+  powerupBarLabelText.setString(name);
+  powerupBarLabelText.setPosition(130.f, y + 1.f);
+  window.draw(powerupBarLabelText);
+}
+
 void GameManager::spawnPowerUp(float x, float y, float dropChance) {
   float rVal = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
   if (rVal > dropChance) {
@@ -1489,18 +1446,7 @@ void GameManager::detonateBomb(float x, float y) {
           spawnPowerUp(enemy.getX() + 20.f, enemy.getY() + 15.f, dropChance);
 
           // Yüzen bilgi yazısını tetikle
-          FloatingText ft;
-          ft.text.setFont(font);
-          ft.text.setCharacterSize(14);
-          ft.text.setFillColor(sf::Color::Yellow);
-          ft.text.setString("+" + std::to_string(pts));
-          ft.x = enemy.getX() + 10.f;
-          ft.y = enemy.getY() - 10.f;
-          ft.lifeTimer = 0.8f;
-          ft.maxLife = 0.8f;
-          ft.speed = 30.f;
-          ft.text.setPosition(ft.x, ft.y);
-          floatingTexts_.push_back(ft);
+          addFloatingText(enemy.getX() + 10.f, enemy.getY() - 10.f, "+" + std::to_string(pts), sf::Color::Yellow, 14, 0.8f, 30.f);
         }
       }
     }
@@ -1519,18 +1465,7 @@ void GameManager::detonateBomb(float x, float y) {
       int pts = UFO_POINTS[rand() % 4];
       score += pts;
 
-      FloatingText ft;
-      ft.text.setFont(font);
-      ft.text.setCharacterSize(20);
-      ft.text.setFillColor(sf::Color::Cyan);
-      ft.text.setString("+" + std::to_string(pts));
-      ft.x = ufo_.x + 10.f;
-      ft.y = ufo_.y - 10.f;
-      ft.lifeTimer = 1.2f;
-      ft.maxLife = 1.2f;
-      ft.speed = 40.f;
-      ft.text.setPosition(ft.x, ft.y);
-      floatingTexts_.push_back(ft);
+      addFloatingText(ufo_.x + 10.f, ufo_.y - 10.f, "+" + std::to_string(pts), sf::Color::Cyan, 20, 1.2f, 40.f);
 
       explosions.emplace_back(ufo_.x + 23.f, ufo_.y + 10.f,
                               sf::Color(255, 60, 60), 18);
